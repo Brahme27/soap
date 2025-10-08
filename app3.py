@@ -135,6 +135,7 @@ Also provide these metrics as JSON at the end:
 METRICS:
 {{
     "emotional_distribution": {{"anxious": 35, "sad": 25, "angry": 10, "neutral": 20, "hopeful": 10}},
+    "emotional_context": {{"anxious": "when therapist talking about relationships", "sad": "when therapist talking about job", "angry": "when discussing past trauma", "neutral": "during check-in questions", "hopeful": "when discussing future goals"}},
     "observed_behaviors": {{"fidgeting": 22, "eye_contact_avoided": 16, "tense_posture": 18, "crying": 3, "appropriate_affect": 15}},
     "assessment_domains": {{"mood": 6, "anxiety": 8, "sleep": 5, "functioning": 6, "risk": 2}},
     "risk_level": "low/moderate/high",
@@ -241,6 +242,7 @@ def parse_soap_response(response):
             except:
                 sections['metrics'] = {
                     "emotional_distribution": {"anxious": 35, "sad": 25, "angry": 10, "neutral": 20, "hopeful": 10},
+                    "emotional_context": {"anxious": "when therapist talking about relationships", "sad": "when therapist talking about job", "angry": "when discussing past trauma", "neutral": "during check-in questions", "hopeful": "when discussing future goals"},
                     "observed_behaviors": {"fidgeting": 22, "eye_contact_avoided": 16, "tense_posture": 18, "crying": 3, "appropriate_affect": 15},
                     "assessment_domains": {"mood": 6, "anxiety": 8, "sleep": 5, "functioning": 6, "risk": 2},
                     "risk_level": "moderate",
@@ -533,6 +535,15 @@ def main():
         if metrics.get('emotional_distribution'):
             fig = create_subjective_chart(metrics['emotional_distribution'])
             st.plotly_chart(fig, use_container_width=True)
+        
+        # Add emotional context below the chart
+        if metrics.get('emotional_context'):
+            st.markdown('<div class="note-label">Emotional Context - When These Feelings Occurred</div>', unsafe_allow_html=True)
+            emotional_context = metrics['emotional_context']
+            context_text = ""
+            for emotion, context in emotional_context.items():
+                context_text += f"**Feeling {emotion.capitalize()}:** {context}<br>"
+            st.markdown(f'<div class="content-text">{context_text}</div>', unsafe_allow_html=True)
         
         st.markdown('</div>', unsafe_allow_html=True)
         
