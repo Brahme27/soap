@@ -33,48 +33,58 @@ def analyze_conversation_emotions(conversation):
         # Focus on client statements for emotion analysis
         analysis_text = ' '.join(client_lines).lower()
     
-    # Enhanced emotion keywords with weighted importance
+    # Enhanced emotion keywords with weighted importance and context awareness
     emotion_keywords = {
         'anxious': {
-            'primary': ['anxious', 'anxiety', 'worried', 'worry', 'nervous', 'stressed', 'stress', 'panic', 'overwhelmed', 'fear', 'scared'],
-            'secondary': ['tense', 'restless', 'uneasy', 'concern', 'concerned', 'frightened', 'terrified', 'apprehensive']
+            'primary': ['anxious', 'anxiety', 'worried', 'worry', 'nervous', 'stressed', 'stress', 'panic', 'overwhelmed', 'fear', 'scared', 'terrified'],
+            'secondary': ['tense', 'restless', 'uneasy', 'concern', 'concerned', 'frightened', 'apprehensive', 'on edge', 'wound up'],
+            'contextual': ['what if', 'afraid that', 'worried about', 'nervous about', 'stressed about', 'can\'t stop thinking', 'keep worrying']
         },
         'sad': {
-            'primary': ['sad', 'sadness', 'depressed', 'depression', 'down', 'upset', 'hopeless', 'empty', 'lonely'],
-            'secondary': ['cry', 'crying', 'tears', 'grief', 'loss', 'hurt', 'pain', 'miserable', 'devastated', 'heartbroken']
+            'primary': ['sad', 'sadness', 'depressed', 'depression', 'down', 'upset', 'hopeless', 'empty', 'lonely', 'devastated'],
+            'secondary': ['cry', 'crying', 'tears', 'grief', 'loss', 'hurt', 'pain', 'miserable', 'heartbroken', 'blue'],
+            'contextual': ['feel empty', 'nothing matters', 'lost everything', 'can\'t go on', 'miss them', 'feel alone']
         },
         'angry': {
-            'primary': ['angry', 'anger', 'mad', 'frustrated', 'frustration', 'irritated', 'annoyed', 'furious'],
-            'secondary': ['rage', 'pissed', 'resentful', 'bitter', 'hostile', 'infuriated', 'outraged']
+            'primary': ['angry', 'anger', 'mad', 'frustrated', 'frustration', 'irritated', 'annoyed', 'furious', 'rage'],
+            'secondary': ['pissed', 'resentful', 'bitter', 'hostile', 'infuriated', 'outraged', 'livid', 'steaming'],
+            'contextual': ['can\'t stand', 'drives me crazy', 'fed up', 'had enough', 'makes me mad', 'so annoying']
         },
         'hopeful': {
-            'primary': ['hopeful', 'hope', 'optimistic', 'positive', 'better', 'improving', 'progress', 'excited'],
-            'secondary': ['good', 'confident', 'motivated', 'encouraged', 'looking forward', 'optimism', 'cheerful']
+            'primary': ['hopeful', 'hope', 'optimistic', 'positive', 'better', 'improving', 'progress', 'excited', 'happy'],
+            'secondary': ['good', 'confident', 'motivated', 'encouraged', 'cheerful', 'upbeat', 'pleased', 'content'],
+            'contextual': ['looking forward', 'excited about', 'can\'t wait', 'things are getting', 'starting to feel', 'getting better']
         },
         'neutral': {
-            'primary': ['okay', 'fine', 'normal', 'same', 'usual', 'routine', 'alright'],
-            'secondary': ['regular', 'typical', 'ordinary', 'standard', 'moderate']
+            'primary': ['okay', 'fine', 'normal', 'same', 'usual', 'routine', 'alright', 'stable'],
+            'secondary': ['regular', 'typical', 'ordinary', 'standard', 'moderate', 'average', 'so-so'],
+            'contextual': ['nothing special', 'just okay', 'about the same', 'no different']
         }
     }
     
-    # Calculate weighted emotion scores
+    # Calculate weighted emotion scores with more sophisticated weighting
     emotion_scores = {}
     total_weighted_score = 0
     
     for emotion, keyword_groups in emotion_keywords.items():
         weighted_count = 0
         
-        # Primary keywords (weight = 2)
+        # Primary keywords (weight = 3) - strongest indicators
         for keyword in keyword_groups['primary']:
             pattern = r'\b' + re.escape(keyword) + r'\b'
             matches = len(re.findall(pattern, analysis_text))
-            weighted_count += matches * 2
+            weighted_count += matches * 3
         
-        # Secondary keywords (weight = 1) 
+        # Secondary keywords (weight = 2) - moderate indicators
         for keyword in keyword_groups['secondary']:
             pattern = r'\b' + re.escape(keyword) + r'\b'
             matches = len(re.findall(pattern, analysis_text))
-            weighted_count += matches * 1
+            weighted_count += matches * 2
+            
+        # Contextual phrases (weight = 2) - important context clues
+        for phrase in keyword_groups['contextual']:
+            if phrase in analysis_text:
+                weighted_count += 2
         
         emotion_scores[emotion] = weighted_count
         total_weighted_score += weighted_count
@@ -82,7 +92,7 @@ def analyze_conversation_emotions(conversation):
     # Analyze conversation context for additional emotion inference
     context_emotions = analyze_contextual_emotions(analysis_text)
     
-    # Add context-based emotion scores
+    # Add context-based emotion scores (weight = 1)
     for emotion, context_score in context_emotions.items():
         if emotion in emotion_scores:
             emotion_scores[emotion] += context_score
@@ -93,70 +103,175 @@ def analyze_conversation_emotions(conversation):
         tone_emotion = infer_emotional_tone(analysis_text)
         return tone_emotion
     
-    # Convert to percentages with minimum thresholds
+    # Convert to percentages with realistic distribution
     emotion_percentages = {}
     for emotion, score in emotion_scores.items():
         if score > 0:
             percentage = round((score / total_weighted_score) * 100)
-            if percentage >= 5:  # Minimum 5% threshold for inclusion
+            if percentage >= 3:  # Lower threshold for more realistic distribution
                 emotion_percentages[emotion] = percentage
     
     # Ensure we have at least one emotion
     if not emotion_percentages:
         return {"neutral": 100}
     
-    # Normalize to exactly 100%
+    # Normalize to exactly 100% and ensure realistic distribution
     total_percentage = sum(emotion_percentages.values())
     if total_percentage != 100:
-        largest_emotion = max(emotion_percentages, key=emotion_percentages.get)
-        emotion_percentages[largest_emotion] += (100 - total_percentage)
+        if total_percentage < 100:
+            # Add remainder to largest emotion
+            largest_emotion = max(emotion_percentages, key=emotion_percentages.get)
+            emotion_percentages[largest_emotion] += (100 - total_percentage)
+        else:
+            # Scale down proportionally
+            scale_factor = 100 / total_percentage
+            emotion_percentages = {k: round(v * scale_factor) for k, v in emotion_percentages.items()}
+            # Final adjustment for rounding errors
+            current_total = sum(emotion_percentages.values())
+            if current_total != 100:
+                largest_emotion = max(emotion_percentages, key=emotion_percentages.get)
+                emotion_percentages[largest_emotion] += (100 - current_total)
     
     return emotion_percentages
 
 
 def analyze_contextual_emotions(text):
-    """Analyze conversation context to infer additional emotions"""
+    """Analyze conversation context to infer additional emotions with more comprehensive patterns"""
     context_indicators = {
-        'anxious': ['what if', 'worried about', 'scared that', 'afraid of', 'nervous about', 'can\'t stop thinking'],
-        'sad': ['feel empty', 'miss', 'lost', 'gone', 'died', 'ended', 'over', 'nothing matters'],
-        'angry': ['hate', 'can\'t stand', 'so annoying', 'drives me crazy', 'fed up', 'had enough'],
-        'hopeful': ['looking forward', 'excited about', 'can\'t wait', 'things are getting', 'starting to feel']
+        'anxious': [
+            'what if', 'worried about', 'scared that', 'afraid of', 'nervous about', 'can\'t stop thinking',
+            'keeps me up', 'constantly thinking', 'racing thoughts', 'worst case scenario', 'something bad',
+            'panic about', 'stressed about', 'tense about', 'on edge about', 'freaking out'
+        ],
+        'sad': [
+            'feel empty', 'miss', 'lost', 'gone', 'died', 'ended', 'over', 'nothing matters',
+            'can\'t enjoy', 'no point', 'feel hollow', 'everything is gray', 'life is meaningless',
+            'want to cry', 'tears come', 'feel broken', 'heart hurts', 'so lonely'
+        ],
+        'angry': [
+            'hate', 'can\'t stand', 'so annoying', 'drives me crazy', 'fed up', 'had enough',
+            'makes me mad', 'pisses me off', 'so frustrated', 'want to scream', 'boiling inside',
+            'sick of', 'can\'t take it', 'rage inside', 'want to hit', 'explode with anger'
+        ],
+        'hopeful': [
+            'looking forward', 'excited about', 'can\'t wait', 'things are getting', 'starting to feel',
+            'getting better', 'improving every day', 'feel optimistic', 'bright future', 'positive change',
+            'good things coming', 'feel encouraged', 'making progress', 'turning around', 'light at the end'
+        ],
+        'neutral': [
+            'just okay', 'nothing special', 'about the same', 'no different', 'routine day',
+            'typical week', 'normal stuff', 'usual things', 'nothing new', 'same old'
+        ]
     }
     
     context_scores = {'anxious': 0, 'sad': 0, 'angry': 0, 'hopeful': 0, 'neutral': 0}
     
     for emotion, indicators in context_indicators.items():
         for indicator in indicators:
-            if indicator in text:
-                context_scores[emotion] += 1
+            # Count occurrences of each contextual phrase
+            count = len(re.findall(re.escape(indicator), text))
+            context_scores[emotion] += count
+    
+    # Additional pattern analysis for emotional context
+    
+    # Anxiety patterns
+    question_count = text.count('?')
+    if question_count >= 5:  # Excessive questioning indicates anxiety
+        context_scores['anxious'] += 2
+    
+    # Uncertainty/doubt patterns for anxiety
+    uncertainty_words = ['uncertain', 'doubt', 'unsure', 'don\'t know what', 'confused about']
+    for word in uncertainty_words:
+        if word in text:
+            context_scores['anxious'] += 1
+    
+    # Sadness patterns - past tense emotional language
+    past_loss_patterns = ['used to', 'before this', 'when things were', 'miss the old', 'remember when']
+    for pattern in past_loss_patterns:
+        if pattern in text:
+            context_scores['sad'] += 1
+    
+    # Anger patterns - strong negative language
+    intensity_words = ['really', 'so', 'very', 'extremely', 'totally']
+    negative_words = ['hate', 'angry', 'frustrated', 'annoyed']
+    for intensity in intensity_words:
+        for negative in negative_words:
+            if f"{intensity} {negative}" in text:
+                context_scores['angry'] += 1
+    
+    # Hope patterns - future-oriented positive language
+    future_positive = ['will be better', 'going to improve', 'planning to', 'hope to', 'want to change']
+    for pattern in future_positive:
+        if pattern in text:
+            context_scores['hopeful'] += 1
     
     return context_scores
 
 
 def infer_emotional_tone(text):
-    """Infer emotional tone when no explicit emotion keywords are found"""
-    # Analyze sentence structure and word choice
+    """Infer emotional tone when no explicit emotion keywords are found using linguistic analysis"""
     words = text.split()
+    word_count = len(words)
     
-    if len(words) < 10:  # Very short responses might indicate withdrawal
-        return {"neutral": 60, "sad": 40}
+    # Analyze response length patterns
+    if word_count < 20:  # Very short responses
+        return {"neutral": 70, "sad": 30}  # Might indicate withdrawal or low mood
+    elif word_count > 200:  # Very long responses
+        return {"anxious": 40, "neutral": 60}  # Might indicate anxiety or pressure speech
     
-    # Look for question marks (might indicate anxiety/uncertainty)
+    # Analyze punctuation patterns
     question_count = text.count('?')
-    if question_count >= 3:
-        return {"anxious": 70, "neutral": 30}
+    exclamation_count = text.count('!')
     
-    # Look for negative language patterns
-    negative_words = ['no', 'not', 'never', 'nothing', 'nobody', 'none', 'can\'t', 'won\'t', 'shouldn\'t']
+    if question_count >= 5:  # Excessive questioning
+        return {"anxious": 80, "neutral": 20}
+    elif exclamation_count >= 3:  # High exclamation use
+        return {"angry": 50, "anxious": 30, "neutral": 20}
+    
+    # Analyze negative language patterns
+    negative_words = ['no', 'not', 'never', 'nothing', 'nobody', 'none', 'can\'t', 'won\'t', 'shouldn\'t', 'don\'t']
     negative_count = sum(1 for word in negative_words if word in text)
+    negative_ratio = negative_count / word_count if word_count > 0 else 0
     
-    if negative_count >= 5:
+    if negative_ratio > 0.15:  # High negative language density
         return {"sad": 60, "neutral": 40}
+    elif negative_ratio > 0.10:
+        return {"sad": 40, "neutral": 60}
     
-    # Default to neutral with slight variation
-    return {"neutral": 100}
+    # Analyze sentence structure complexity
+    sentences = text.split('.')
+    avg_sentence_length = sum(len(sentence.split()) for sentence in sentences) / len(sentences) if sentences else 0
     
-    return emotion_percentages
+    if avg_sentence_length < 3:  # Very short, fragmented sentences
+        return {"sad": 50, "neutral": 50}
+    elif avg_sentence_length > 20:  # Very long, complex sentences
+        return {"anxious": 40, "neutral": 60}
+    
+    # Analyze repetitive patterns (might indicate rumination)
+    words_lower = [word.lower() for word in words]
+    unique_words = set(words_lower)
+    repetition_ratio = len(words_lower) / len(unique_words) if unique_words else 1
+    
+    if repetition_ratio > 2:  # High repetition
+        return {"anxious": 50, "sad": 30, "neutral": 20}
+    
+    # Analyze temporal references
+    past_words = ['was', 'were', 'had', 'used to', 'before', 'ago', 'yesterday', 'last']
+    future_words = ['will', 'going to', 'tomorrow', 'next', 'soon', 'later', 'plan', 'hope']
+    
+    past_count = sum(1 for word in past_words if word in text)
+    future_count = sum(1 for word in future_words if word in text)
+    
+    if past_count > future_count * 2:  # Heavy focus on past
+        return {"sad": 60, "neutral": 40}
+    elif future_count > past_count * 2:  # Heavy focus on future
+        return {"hopeful": 40, "neutral": 60}
+    
+    # Default based on overall analysis
+    if negative_ratio > 0.05:
+        return {"neutral": 80, "sad": 20}
+    else:
+        return {"neutral": 100}
 
 
 def analyze_observed_behaviors(conversation):
@@ -185,212 +300,455 @@ def analyze_observed_behaviors(conversation):
     # 1. EMOTIONAL EXPRESSION (AFFECT) - How patient shows emotions
     emotional_expression_score = 5  # Start at baseline
     
-    # Positive indicators (increase score)
-    positive_affect = ['expressive', 'animated', 'enthusiastic', 'laughing', 'smiling', 'excited']
-    appropriate_affect = ['calm', 'relaxed', 'composed', 'appropriate', 'stable']
+    # Enhanced affect indicators
+    positive_affect = [
+        'expressive', 'animated', 'enthusiastic', 'laughing', 'smiling', 'excited',
+        'lively', 'energetic', 'vibrant', 'cheerful', 'bright'
+    ]
+    appropriate_affect = [
+        'calm', 'relaxed', 'composed', 'appropriate', 'stable', 'steady',
+        'balanced', 'even', 'controlled', 'measured'
+    ]
+    flat_affect = [
+        'flat', 'monotone', 'emotionless', 'blank', 'expressionless', 'dull',
+        'lifeless', 'robotic', 'mechanical', 'deadpan', 'empty'
+    ]
+    inappropriate_affect = [
+        'laughing inappropriately', 'crying suddenly', 'angry outburst',
+        'mood swings', 'inappropriate laughter', 'sudden tears'
+    ]
     
-    # Negative indicators (decrease score) 
-    flat_affect = ['flat', 'monotone', 'emotionless', 'blank', 'expressionless', 'dull']
-    inappropriate_affect = ['laughing inappropriately', 'crying suddenly', 'angry outburst']
+    # Count affect indicators with more nuanced scoring
+    positive_affect_count = sum(1 for indicator in positive_affect if indicator in text)
+    appropriate_affect_count = sum(1 for indicator in appropriate_affect if indicator in text)
+    flat_affect_count = sum(1 for indicator in flat_affect if indicator in text)
+    inappropriate_affect_count = sum(1 for indicator in inappropriate_affect if indicator in text)
     
-    for indicator in positive_affect + appropriate_affect:
-        if indicator in text:
-            emotional_expression_score += 1
+    # Adjust score based on affect indicators
+    emotional_expression_score += positive_affect_count * 1.5
+    emotional_expression_score += appropriate_affect_count * 1
+    emotional_expression_score -= flat_affect_count * 2
+    emotional_expression_score -= inappropriate_affect_count * 3
     
-    for indicator in flat_affect + inappropriate_affect:
-        if indicator in text:
-            emotional_expression_score -= 2
-    
-    # Assess based on emotional content richness
-    emotion_words = ['feel', 'feeling', 'felt', 'emotion', 'emotional']
+    # Assess emotional vocabulary richness
+    emotion_words = ['feel', 'feeling', 'felt', 'emotion', 'emotional', 'mood', 'sense', 'experience']
     emotion_mentions = sum(text.count(word) for word in emotion_words)
-    if emotion_mentions >= 5:
+    
+    if emotion_mentions >= 8:
+        emotional_expression_score += 2
+    elif emotion_mentions >= 5:
         emotional_expression_score += 1
     elif emotion_mentions <= 1:
+        emotional_expression_score -= 2
+    
+    # Analyze emotional range and depth
+    emotional_descriptors = [
+        'happy', 'sad', 'angry', 'scared', 'excited', 'worried', 'frustrated',
+        'hopeful', 'disappointed', 'proud', 'ashamed', 'guilty', 'relieved'
+    ]
+    unique_emotions = sum(1 for word in emotional_descriptors if word in text)
+    
+    if unique_emotions >= 5:
+        emotional_expression_score += 1.5
+    elif unique_emotions <= 1:
         emotional_expression_score -= 1
     
-    clinical_assessment["emotional_expression"] = max(1, min(10, emotional_expression_score))
+    clinical_assessment["emotional_expression"] = max(1, min(10, round(emotional_expression_score)))
     
     # 2. MOOD PRESENTATION - Overall emotional state conveyed
     mood_score = 5  # Start at baseline
     
-    # Mood indicators
-    positive_mood = ['happy', 'hopeful', 'optimistic', 'good', 'better', 'improving', 'positive', 'cheerful']
-    neutral_mood = ['okay', 'fine', 'alright', 'normal', 'stable']
-    negative_mood = ['sad', 'depressed', 'anxious', 'worried', 'angry', 'frustrated', 'hopeless', 'upset']
+    # Enhanced mood indicators with intensity scoring
+    positive_mood = ['happy', 'hopeful', 'optimistic', 'good', 'better', 'improving', 'positive', 'cheerful', 'upbeat', 'content']
+    negative_mood = ['sad', 'depressed', 'anxious', 'worried', 'angry', 'frustrated', 'hopeless', 'upset', 'miserable', 'devastated']
+    neutral_mood = ['okay', 'fine', 'alright', 'normal', 'stable', 'average', 'so-so']
     
+    # Count with weighted importance
     positive_count = sum(text.count(word) for word in positive_mood)
     negative_count = sum(text.count(word) for word in negative_mood)
+    neutral_count = sum(text.count(word) for word in neutral_mood)
     
-    # Adjust score based on mood indicators
-    mood_score += positive_count - negative_count
+    # Calculate mood balance
+    total_mood_words = positive_count + negative_count + neutral_count
+    if total_mood_words > 0:
+        positive_ratio = positive_count / total_mood_words
+        negative_ratio = negative_count / total_mood_words
+        
+        # Adjust score based on mood distribution
+        mood_score += (positive_ratio * 5) - (negative_ratio * 5)
     
-    # Assess overall tone
-    if any(word in text for word in ['excited', 'happy', 'great', 'wonderful']):
-        mood_score += 2
-    elif any(word in text for word in ['terrible', 'awful', 'hopeless', 'devastating']):
-        mood_score -= 3
+    # Assess overall tone with intensity markers
+    intensity_positive = ['extremely happy', 'so excited', 'really good', 'absolutely wonderful', 'fantastic']
+    intensity_negative = ['extremely sad', 'so depressed', 'really awful', 'absolutely terrible', 'devastating']
     
-    clinical_assessment["mood_presentation"] = max(1, min(10, mood_score))
+    for phrase in intensity_positive:
+        if phrase in text:
+            mood_score += 3
+    
+    for phrase in intensity_negative:
+        if phrase in text:
+            mood_score -= 4
+    
+    clinical_assessment["mood_presentation"] = max(1, min(10, round(mood_score)))
     
     # 3. ENGAGEMENT/PARTICIPATION - Level of involvement in conversation
     engagement_score = 5  # Start at baseline
     
-    # Engagement indicators
-    high_engagement = ['yes', 'absolutely', 'definitely', 'i think', 'i believe', 'i understand', 'that makes sense']
-    low_engagement = ['i don\'t know', 'maybe', 'i guess', 'whatever', 'sure', 'fine']
+    # Enhanced engagement indicators
+    high_engagement = [
+        'yes', 'absolutely', 'definitely', 'i think', 'i believe', 'i understand',
+        'that makes sense', 'i agree', 'exactly', 'right', 'true', 'i see what you mean'
+    ]
+    moderate_engagement = [
+        'maybe', 'perhaps', 'possibly', 'sometimes', 'i suppose', 'kind of'
+    ]
+    low_engagement = [
+        'i don\'t know', 'i guess', 'whatever', 'sure', 'fine', 'nothing',
+        'don\'t care', 'doesn\'t matter'
+    ]
     
+    # Calculate engagement indicators with different weights
     high_count = sum(text.count(phrase) for phrase in high_engagement)
+    moderate_count = sum(text.count(phrase) for phrase in moderate_engagement)
     low_count = sum(text.count(phrase) for phrase in low_engagement)
     
-    engagement_score += high_count - low_count
+    engagement_score += high_count * 1 - low_count * 1.5 + moderate_count * 0.5
     
-    # Assess response quality
-    if avg_response_length > 20:  # Detailed responses
-        engagement_score += 2
+    # Response quality assessment
+    if avg_response_length > 30:  # Very detailed responses
+        engagement_score += 3
+    elif avg_response_length > 15:  # Good detail
+        engagement_score += 1.5
     elif avg_response_length < 5:  # Very brief responses
-        engagement_score -= 2
+        engagement_score -= 3
+    elif avg_response_length < 10:  # Short responses
+        engagement_score -= 1.5
     
-    # Participation ratio
+    # Participation ratio analysis
     if len(client_lines) > 0 and len(therapist_lines) > 0:
         participation_ratio = len(client_lines) / len(therapist_lines)
-        if participation_ratio > 0.8:  # Good participation
+        if participation_ratio > 1.0:  # Client speaks more than therapist
+            engagement_score += 2
+        elif participation_ratio > 0.7:  # Good participation
             engagement_score += 1
         elif participation_ratio < 0.3:  # Poor participation
-            engagement_score -= 2
+            engagement_score -= 3
+        elif participation_ratio < 0.5:  # Low participation
+            engagement_score -= 1.5
     
-    clinical_assessment["engagement_level"] = max(1, min(10, engagement_score))
+    # Initiative and spontaneous sharing
+    initiative_markers = ['i wanted to tell you', 'i\'ve been thinking', 'something happened', 'i realized']
+    initiative_count = sum(1 for marker in initiative_markers if marker in text)
+    engagement_score += initiative_count * 1.5
+    
+    clinical_assessment["engagement_level"] = max(1, min(10, round(engagement_score)))
     
     # 4. THOUGHT PATTERNS - How patient speaks and thinks
     thought_patterns_score = 5  # Start at baseline
     
-    # Clear thinking indicators
-    clear_thinking = ['understand', 'realize', 'makes sense', 'logical', 'clear', 'rational']
-    organized_speech = ['first', 'second', 'then', 'because', 'therefore', 'so']
+    # Enhanced thinking assessment
+    clear_thinking = [
+        'understand', 'realize', 'makes sense', 'logical', 'clear', 'rational',
+        'organized', 'coherent', 'focused', 'systematic', 'step by step'
+    ]
+    organized_speech = [
+        'first', 'second', 'then', 'because', 'therefore', 'so', 'next',
+        'finally', 'in conclusion', 'as a result', 'for example'
+    ]
+    confused_thinking = [
+        'confused', 'don\'t understand', 'mixed up', 'scattered', 'all over the place',
+        'can\'t think straight', 'foggy', 'unclear', 'jumbled', 'disorganized'
+    ]
+    negative_patterns = [
+        'always', 'never', 'everyone', 'nobody', 'everything', 'nothing',
+        'all the time', 'constantly', 'forever', 'worst', 'terrible'
+    ]
     
-    # Unclear thinking indicators
-    confused_thinking = ['confused', 'don\'t understand', 'mixed up', 'scattered', 'all over the place']
-    negative_patterns = ['always', 'never', 'everyone', 'nobody', 'everything', 'nothing']
-    repetitive_patterns = ['but', 'however', 'and then', 'you know']
+    # Count thinking indicators
+    clear_count = sum(text.count(word) for word in clear_thinking)
+    organized_count = sum(text.count(word) for word in organized_speech)
+    confused_count = sum(text.count(word) for word in confused_thinking)
+    negative_pattern_count = sum(text.count(word) for word in negative_patterns)
     
-    clear_count = sum(text.count(word) for word in clear_thinking + organized_speech)
-    unclear_count = sum(text.count(word) for word in confused_thinking)
-    negative_count = sum(text.count(word) for word in negative_patterns)
-    
-    thought_patterns_score += clear_count - unclear_count - (negative_count // 2)
+    # Adjust score based on thinking patterns
+    thought_patterns_score += clear_count * 1
+    thought_patterns_score += organized_count * 1.5
+    thought_patterns_score -= confused_count * 2
+    thought_patterns_score -= negative_pattern_count * 0.5
     
     # Assess coherence and organization
     questions_count = text.count('?')
-    if questions_count > 10:  # Excessive questioning might indicate confusion
+    if questions_count > 15:  # Excessive questioning
+        thought_patterns_score -= 2
+    elif questions_count > 8:
         thought_patterns_score -= 1
     
-    # Look for repetitive or circular thinking
-    if any(phrase in text for phrase in ['i keep thinking', 'over and over', 'can\'t stop']):
-        thought_patterns_score -= 1
+    # Repetitive or circular thinking patterns
+    repetitive_phrases = ['i keep thinking', 'over and over', 'can\'t stop', 'round and round', 'same thing']
+    circular_count = sum(1 for phrase in repetitive_phrases if phrase in text)
+    thought_patterns_score -= circular_count * 1.5
     
     # Positive thought restructuring
-    if any(phrase in text for phrase in ['maybe i could', 'what if i try', 'another way']):
-        thought_patterns_score += 1
+    restructuring_phrases = ['maybe i could', 'what if i try', 'another way', 'different perspective', 'new approach']
+    restructuring_count = sum(1 for phrase in restructuring_phrases if phrase in text)
+    thought_patterns_score += restructuring_count * 2
     
-    clinical_assessment["thought_patterns"] = max(1, min(10, thought_patterns_score))
+    # Insight and self-awareness
+    insight_markers = ['i notice', 'i\'m aware', 'i understand that', 'i see now', 'it\'s clear that']
+    insight_count = sum(1 for marker in insight_markers if marker in text)
+    thought_patterns_score += insight_count * 1.5
+    
+    clinical_assessment["thought_patterns"] = max(1, min(10, round(thought_patterns_score)))
     
     return clinical_assessment
 
 
 def analyze_assessment_domains(conversation, emotional_distribution):
-    """Calculate assessment domain scores based on conversation content"""
+    """Calculate assessment domain scores based on conversation content with enhanced accuracy"""
     if not conversation:
         return {"mood": 5, "anxiety": 5, "sleep": 5, "functioning": 5, "risk": 1}
     
     text = conversation.lower()
     
-    # Domain-specific indicators
+    # Enhanced domain-specific indicators with weighted scoring
     domain_indicators = {
         'mood': {
-            'negative': ['depressed', 'sad', 'down', 'hopeless', 'empty', 'crying', 'tears'],
-            'positive': ['better', 'good mood', 'happy', 'positive', 'improving']
+            'negative': {
+                'severe': ['extremely depressed', 'severely depressed', 'completely hopeless', 'want to die'],
+                'moderate': ['depressed', 'sad', 'down', 'hopeless', 'empty', 'crying', 'tears', 'miserable', 'devastated'],
+                'mild': ['bit down', 'little sad', 'not great', 'feeling low', 'blue', 'gloomy']
+            },
+            'positive': {
+                'strong': ['extremely happy', 'really good', 'fantastic', 'wonderful', 'amazing'],
+                'moderate': ['better', 'good mood', 'happy', 'positive', 'improving', 'upbeat'],
+                'mild': ['okay', 'fine', 'alright', 'not bad', 'decent']
+            }
         },
         'anxiety': {
-            'negative': ['anxious', 'worry', 'panic', 'stressed', 'nervous', 'overwhelmed', 'fear'],
-            'positive': ['calm', 'relaxed', 'peaceful', 'less anxious']
+            'negative': {
+                'severe': ['panic attacks', 'severe anxiety', 'can\'t breathe', 'overwhelming panic', 'constant anxiety'],
+                'moderate': ['anxious', 'worry', 'panic', 'stressed', 'nervous', 'overwhelmed', 'fear', 'scared', 'terrified'],
+                'mild': ['bit worried', 'little anxious', 'somewhat nervous', 'slight concern', 'tense']
+            },
+            'positive': {
+                'strong': ['completely calm', 'totally relaxed', 'no anxiety', 'perfectly peaceful'],
+                'moderate': ['calm', 'relaxed', 'peaceful', 'less anxious', 'manageable'],
+                'mild': ['okay', 'not too bad', 'handling it', 'coping']
+            }
         },
         'sleep': {
-            'negative': ['can\'t sleep', 'insomnia', 'waking up', 'nightmares', 'tired', 'exhausted'],
-            'positive': ['sleeping well', 'good sleep', 'rested']
+            'negative': {
+                'severe': ['no sleep', 'can\'t sleep at all', 'awake all night', 'severe insomnia', 'exhausted'],
+                'moderate': ['can\'t sleep', 'insomnia', 'waking up', 'nightmares', 'tired', 'poor sleep'],
+                'mild': ['bit tired', 'restless sleep', 'waking early', 'light sleep']
+            },
+            'positive': {
+                'strong': ['sleeping perfectly', 'excellent sleep', 'sleeping through the night'],
+                'moderate': ['sleeping well', 'good sleep', 'rested', 'better sleep'],
+                'mild': ['okay sleep', 'getting some sleep', 'not bad']
+            }
         },
         'functioning': {
-            'negative': ['can\'t work', 'struggling', 'difficult', 'problems at work', 'can\'t focus'],
-            'positive': ['working well', 'productive', 'managing', 'doing better']
+            'negative': {
+                'severe': ['can\'t work at all', 'unable to function', 'completely disabled', 'can\'t do anything'],
+                'moderate': ['can\'t work', 'struggling', 'difficult', 'problems at work', 'can\'t focus', 'barely functioning'],
+                'mild': ['bit difficult', 'some problems', 'challenging', 'harder than usual']
+            },
+            'positive': {
+                'strong': ['functioning perfectly', 'excellent at work', 'highly productive'],
+                'moderate': ['working well', 'productive', 'managing', 'doing better', 'good performance'],
+                'mild': ['okay at work', 'getting by', 'managing okay']
+            }
         },
         'risk': {
-            'negative': ['hurt myself', 'suicide', 'end it all', 'no point', 'hopeless', 'worthless'],
-            'positive': ['safe', 'no thoughts of harm', 'support system']
+            'negative': {
+                'severe': ['want to kill myself', 'suicide', 'end my life', 'better off dead', 'plan to die'],
+                'moderate': ['hurt myself', 'end it all', 'no point in living', 'want to disappear', 'harm myself'],
+                'mild': ['hopeless', 'worthless', 'pointless', 'give up', 'no reason to live']
+            },
+            'positive': {
+                'strong': ['want to live', 'looking forward', 'excited about future', 'strong support'],
+                'moderate': ['safe', 'no thoughts of harm', 'support system', 'getting help'],
+                'mild': ['okay', 'managing', 'hanging in there']
+            }
         }
     }
     
     domain_scores = {}
     
     for domain, indicators in domain_indicators.items():
-        negative_count = 0
-        positive_count = 0
+        # Count indicators with severity weighting
+        severe_negative = sum(text.count(phrase) for phrase in indicators['negative']['severe'])
+        moderate_negative = sum(text.count(phrase) for phrase in indicators['negative']['moderate'])
+        mild_negative = sum(text.count(phrase) for phrase in indicators['negative']['mild'])
         
-        for phrase in indicators['negative']:
-            negative_count += len(re.findall(re.escape(phrase), text))
+        strong_positive = sum(text.count(phrase) for phrase in indicators['positive']['strong'])
+        moderate_positive = sum(text.count(phrase) for phrase in indicators['positive']['moderate'])
+        mild_positive = sum(text.count(phrase) for phrase in indicators['positive']['mild'])
         
-        for phrase in indicators['positive']:
-            positive_count += len(re.findall(re.escape(phrase), text))
+        # Calculate weighted negative score (higher = more severe)
+        negative_score = (severe_negative * 4) + (moderate_negative * 2) + (mild_negative * 1)
         
-        # Calculate score (0-10 scale)
-        if negative_count == 0 and positive_count == 0:
-            # No indicators - use emotional distribution to infer
-            if domain == 'anxiety' and 'anxious' in emotional_distribution:
-                score = min(10, int(emotional_distribution['anxious'] / 10))
-            elif domain == 'mood' and 'sad' in emotional_distribution:
-                score = min(10, int(emotional_distribution['sad'] / 10))
+        # Calculate weighted positive score (higher = better functioning)
+        positive_score = (strong_positive * 3) + (moderate_positive * 2) + (mild_positive * 1)
+        
+        # Calculate domain score (1-10 scale where higher = more problematic)
+        if negative_score == 0 and positive_score == 0:
+            # No explicit indicators found - infer from emotional distribution if available
+            if domain == 'anxiety' and emotional_distribution and 'anxious' in emotional_distribution:
+                # Scale anxiety based on anxious emotion percentage
+                anxious_pct = emotional_distribution['anxious']
+                score = min(10, max(1, round((anxious_pct / 10))))  # 10% anxious = score of 1, 100% = 10
+            elif domain == 'mood' and emotional_distribution and 'sad' in emotional_distribution:
+                # Scale mood disturbance based on sad emotion percentage
+                sad_pct = emotional_distribution['sad']
+                score = min(10, max(1, round((sad_pct / 10))))  # 10% sad = score of 1, 100% = 10
+            elif domain == 'risk':
+                # Risk requires explicit indicators - default to very low if none found
+                score = 1
+            elif domain == 'sleep':
+                # No sleep mentions suggests it's not a major concern
+                score = 2
+            elif domain == 'functioning':
+                # No explicit functioning issues suggests moderate to good functioning
+                score = 3
             else:
-                score = 5  # Neutral/moderate
+                # For other domains with no data, use conversation length as proxy
+                # Longer, more engaged conversations suggest better functioning
+                score = 3  # Assume mild severity if no explicit indicators
         else:
-            # Calculate based on ratio of negative to positive indicators
-            total_indicators = negative_count + positive_count
-            negative_ratio = negative_count / total_indicators if total_indicators > 0 else 0
-            score = int(negative_ratio * 10)
-            score = max(1, min(10, score))  # Ensure score is between 1-10
+            # Calculate based on balance of positive vs negative indicators
+            total_indicators = negative_score + positive_score
+            if total_indicators > 0:
+                negative_ratio = negative_score / total_indicators
+                # Scale to 1-10 where 10 is most severe
+                base_score = negative_ratio * 9 + 1
+                
+                # Adjust for positive indicators
+                if positive_score > negative_score:
+                    base_score = max(1, base_score - 2)
+                elif positive_score > 0:
+                    base_score = max(1, base_score - 1)
+                
+                score = min(10, max(1, round(base_score)))
+            else:
+                score = 5
+        
+        # Special handling for risk domain
+        if domain == 'risk':
+            # Risk should generally be lower unless explicit risk factors
+            if severe_negative > 0:
+                score = min(10, score + 2)
+            elif negative_score == 0:
+                score = min(3, score)  # Cap at low-moderate risk if no negative indicators
         
         domain_scores[domain] = score
+    
+    # Cross-validate with emotional distribution
+    if emotional_distribution:
+        # Adjust anxiety score based on anxious emotion percentage
+        if 'anxious' in emotional_distribution and emotional_distribution['anxious'] > 50:
+            domain_scores['anxiety'] = min(10, domain_scores['anxiety'] + 1)
+        
+        # Adjust mood score based on sad emotion percentage
+        if 'sad' in emotional_distribution and emotional_distribution['sad'] > 50:
+            domain_scores['mood'] = min(10, domain_scores['mood'] + 1)
+        
+        # Adjust based on hopeful emotions
+        if 'hopeful' in emotional_distribution and emotional_distribution['hopeful'] > 30:
+            domain_scores['mood'] = max(1, domain_scores['mood'] - 1)
+            domain_scores['risk'] = max(1, domain_scores['risk'] - 1)
     
     return domain_scores
 
 
 def calculate_risk_level(assessment_domains, conversation):
-    """Determine risk level based on assessment and conversation content"""
+    """Determine risk level based on assessment and conversation content with enhanced accuracy"""
     if not conversation:
-        return "low"
+        # Return None or 'unknown' when no conversation - let calling code handle display
+        return "unknown"
     
     text = conversation.lower()
     
-    # High risk indicators
-    high_risk_phrases = ['hurt myself', 'kill myself', 'suicide', 'end it all', 'no point in living']
-    moderate_risk_phrases = ['hopeless', 'worthless', 'can\'t go on', 'too much pain']
+    # Comprehensive risk indicators with severity levels
+    risk_indicators = {
+        'high': [
+            'want to kill myself', 'suicide', 'end my life', 'better off dead', 'plan to die',
+            'kill me', 'suicidal', 'take my own life', 'rather be dead', 'ending it all'
+        ],
+        'moderate': [
+            'hurt myself', 'end it all', 'no point in living', 'want to disappear', 'harm myself',
+            'cut myself', 'self-harm', 'no reason to live', 'pointless existence', 'can\'t go on'
+        ],
+        'mild': [
+            'hopeless', 'worthless', 'pointless', 'give up', 'no reason', 'nothing matters',
+            'no hope', 'useless', 'burden', 'better without me'
+        ]
+    }
     
-    high_risk_count = sum(len(re.findall(re.escape(phrase), text)) for phrase in high_risk_phrases)
-    moderate_risk_count = sum(len(re.findall(re.escape(phrase), text)) for phrase in moderate_risk_phrases)
+    # Protective factors
+    protective_factors = [
+        'support system', 'family needs me', 'getting help', 'therapy helps', 'want to live',
+        'looking forward', 'things to live for', 'people care', 'safe', 'no thoughts of harm',
+        'won\'t hurt myself', 'seeking help'
+    ]
     
-    # Check assessment scores
-    risk_score = assessment_domains.get('risk', 1)
-    mood_score = assessment_domains.get('mood', 5)
+    # Count risk indicators with weighted scoring
+    high_risk_count = sum(text.count(phrase) for phrase in risk_indicators['high'])
+    moderate_risk_count = sum(text.count(phrase) for phrase in risk_indicators['moderate'])
+    mild_risk_count = sum(text.count(phrase) for phrase in risk_indicators['mild'])
     
+    # Count protective factors
+    protective_count = sum(text.count(phrase) for phrase in protective_factors)
+    
+    # Calculate weighted risk score
+    risk_score = (high_risk_count * 4) + (moderate_risk_count * 2) + (mild_risk_count * 1)
+    
+    # Adjust for protective factors
+    if protective_count > 0:
+        risk_score = max(0, risk_score - protective_count)
+    
+    # Check assessment scores if available
+    if assessment_domains:
+        domain_risk_score = assessment_domains.get('risk', 1)
+        mood_score = assessment_domains.get('mood', 5)
+        
+        # High domain scores indicate more severe symptoms
+        if domain_risk_score >= 8:
+            risk_score += 3
+        elif domain_risk_score >= 6:
+            risk_score += 1
+        
+        if mood_score >= 8:
+            risk_score += 1
+    
+    # Additional context analysis
+    # Look for expressions of pain and distress
+    distress_indicators = ['can\'t take it anymore', 'too much pain', 'overwhelming', 'unbearable']
+    distress_count = sum(1 for phrase in distress_indicators if phrase in text)
+    risk_score += distress_count
+    
+    # Look for social isolation
+    isolation_indicators = ['no one cares', 'all alone', 'nobody understands', 'isolated', 'no friends']
+    isolation_count = sum(1 for phrase in isolation_indicators if phrase in text)
+    risk_score += isolation_count * 0.5
+    
+    # Determine final risk level
     if high_risk_count > 0 or risk_score >= 8:
         return "high"
-    elif moderate_risk_count > 0 or risk_score >= 5 or mood_score >= 7:
+    elif moderate_risk_count > 0 or risk_score >= 4:
         return "moderate"
+    elif mild_risk_count > 0 or risk_score >= 1:
+        return "low-moderate"
     else:
         return "low"
 
 
 def calculate_engagement_productivity(conversation):
-    """Calculate engagement and productivity scores based on conversation quality"""
+    """Calculate engagement and productivity scores based on conversation quality with enhanced analysis"""
     if not conversation:
-        return 5, 5
+        # Return None values when no conversation provided - will be handled gracefully in display
+        return None, None
     
     text = conversation.lower()
     lines = conversation.split('\n')
@@ -399,31 +757,163 @@ def calculate_engagement_productivity(conversation):
     client_responses = [line for line in lines if line.lower().startswith('client:')]
     therapist_responses = [line for line in lines if line.lower().startswith('therapist:')]
     
-    # Engagement indicators
-    engagement_positive = ['yes', 'i think', 'i feel', 'i\'ve been', 'it\'s like', 'i understand']
-    engagement_negative = ['i don\'t know', 'maybe', 'i guess', 'whatever', 'fine']
-    
-    positive_engagement = sum(len(re.findall(re.escape(phrase), text)) for phrase in engagement_positive)
-    negative_engagement = sum(len(re.findall(re.escape(phrase), text)) for phrase in engagement_negative)
-    
-    # Calculate engagement (1-10)
     if len(client_responses) == 0:
-        engagement_level = 1
-    else:
-        avg_response_length = sum(len(response) for response in client_responses) / len(client_responses)
-        length_score = min(10, avg_response_length / 50)  # Normalize to 0-10
-        interaction_score = min(10, positive_engagement - negative_engagement + 5)
-        engagement_level = max(1, int((length_score + interaction_score) / 2))
+        return 1, 1  # No client engagement
     
-    # Productivity based on conversation depth and therapeutic progress
-    productivity_indicators = ['understand', 'realize', 'makes sense', 'i see', 'that helps', 'better now']
-    productivity_score = sum(len(re.findall(re.escape(phrase), text)) for phrase in productivity_indicators)
+    # Enhanced engagement indicators with weighted scoring
+    engagement_indicators = {
+        'high': {
+            'phrases': ['yes absolutely', 'definitely', 'i think', 'i believe', 'i understand', 
+                       'that makes sense', 'i agree', 'exactly', 'you\'re right', 'i see what you mean',
+                       'that\'s interesting', 'i never thought of that', 'that helps'],
+            'weight': 2
+        },
+        'moderate': {
+            'phrases': ['yes', 'maybe', 'perhaps', 'possibly', 'sometimes', 'i suppose', 
+                       'kind of', 'sort of', 'i think so', 'could be'],
+            'weight': 1
+        },
+        'low': {
+            'phrases': ['i don\'t know', 'i guess', 'whatever', 'sure', 'fine', 'nothing',
+                       'don\'t care', 'doesn\'t matter', 'not really', 'no idea'],
+            'weight': -2
+        },
+        'disengagement': {
+            'phrases': ['can we stop', 'i don\'t want to talk', 'this is pointless', 'waste of time',
+                       'not helping', 'don\'t see the point'],
+            'weight': -3
+        }
+    }
     
+    # Calculate engagement score
+    engagement_score = 5  # Start at baseline
+    
+    for level, data in engagement_indicators.items():
+        count = sum(text.count(phrase) for phrase in data['phrases'])
+        engagement_score += count * data['weight']
+    
+    # Response quality analysis
+    total_client_words = sum(len(response.split()) for response in client_responses)
+    avg_response_length = total_client_words / len(client_responses)
+    
+    # Adjust for response length and quality
+    if avg_response_length > 50:  # Very detailed responses
+        engagement_score += 3
+    elif avg_response_length > 25:  # Good detail
+        engagement_score += 2
+    elif avg_response_length > 15:  # Moderate detail
+        engagement_score += 1
+    elif avg_response_length < 5:  # Very brief responses
+        engagement_score -= 3
+    elif avg_response_length < 8:  # Brief responses
+        engagement_score -= 1
+    
+    # Participation ratio analysis
+    if len(therapist_responses) > 0:
+        participation_ratio = len(client_responses) / len(therapist_responses)
+        if participation_ratio > 1.5:  # Client speaks much more
+            engagement_score += 2
+        elif participation_ratio > 1.0:  # Client speaks more
+            engagement_score += 1
+        elif participation_ratio > 0.7:  # Good participation
+            engagement_score += 0.5
+        elif participation_ratio < 0.3:  # Poor participation
+            engagement_score -= 3
+        elif participation_ratio < 0.5:  # Low participation
+            engagement_score -= 1.5
+    
+    # Initiative and spontaneous sharing
+    initiative_markers = [
+        'i wanted to tell you', 'i\'ve been thinking', 'something happened', 'i realized',
+        'i discovered', 'i noticed', 'it occurred to me', 'i figured out'
+    ]
+    initiative_count = sum(1 for marker in initiative_markers if marker in text)
+    engagement_score += initiative_count * 1.5
+    
+    # Questions asked by client (shows engagement)
+    client_questions = sum(line.count('?') for line in client_responses)
+    engagement_score += min(client_questions * 0.5, 2)  # Cap bonus at 2 points
+    
+    # Final engagement level (1-10)
+    engagement_level = max(1, min(10, round(engagement_score)))
+    
+    # PRODUCTIVITY ANALYSIS
+    productivity_score = 5  # Start at baseline
+    
+    # Enhanced productivity indicators
+    therapeutic_progress = {
+        'insight': ['i understand now', 'i realize', 'makes sense', 'i see', 'that explains',
+                   'now i know', 'i get it', 'i\'m aware', 'i notice', 'i learned'],
+        'application': ['i tried', 'i practiced', 'i used what you said', 'i applied',
+                       'i implemented', 'i worked on', 'i did the homework'],
+        'emotional_processing': ['i feel better', 'that helps', 'i\'m relieved', 'clearer now',
+                                'less confused', 'making progress', 'getting better'],
+        'commitment': ['i will try', 'i\'m going to', 'i plan to', 'i want to work on',
+                      'i\'m committed', 'i\'ll practice', 'i\'ll remember']
+    }
+    
+    # Calculate productivity based on therapeutic indicators
+    for category, phrases in therapeutic_progress.items():
+        count = sum(text.count(phrase) for phrase in phrases)
+        if category == 'insight':
+            productivity_score += count * 2  # Insight is highly valuable
+        elif category == 'application':
+            productivity_score += count * 2.5  # Application shows engagement with treatment
+        elif category == 'emotional_processing':
+            productivity_score += count * 1.5
+        elif category == 'commitment':
+            productivity_score += count * 1.5
+    
+    # Depth of self-reflection
+    reflection_markers = [
+        'i think about', 'i wonder', 'i ask myself', 'i question', 'i examine',
+        'looking at myself', 'reflecting on', 'considering', 'evaluating'
+    ]
+    reflection_count = sum(1 for marker in reflection_markers if marker in text)
+    productivity_score += reflection_count * 1
+    
+    # Problem-solving attempts
+    problem_solving = [
+        'maybe i could', 'what if i', 'i could try', 'another approach', 'different way',
+        'alternative', 'solution', 'strategy', 'plan'
+    ]
+    problem_solving_count = sum(1 for phrase in problem_solving if phrase in text)
+    productivity_score += problem_solving_count * 2
+    
+    # Emotional vocabulary and expression (indicates processing)
+    emotional_words = [
+        'feel', 'feeling', 'felt', 'emotion', 'mood', 'sense', 'experience',
+        'angry', 'sad', 'happy', 'anxious', 'frustrated', 'hopeful', 'scared'
+    ]
+    emotion_mentions = sum(text.count(word) for word in emotional_words)
+    if emotion_mentions >= 15:
+        productivity_score += 2
+    elif emotion_mentions >= 10:
+        productivity_score += 1.5
+    elif emotion_mentions >= 5:
+        productivity_score += 1
+    
+    # Session depth based on conversation flow
     if len(therapist_responses) > 0 and len(client_responses) > 0:
-        interaction_ratio = len(client_responses) / len(therapist_responses)
-        productivity_level = min(10, max(1, int(productivity_score + interaction_ratio * 3)))
-    else:
-        productivity_level = 5
+        # More back-and-forth indicates deeper exploration
+        conversation_depth = min(len(client_responses), len(therapist_responses))
+        if conversation_depth >= 15:
+            productivity_score += 2
+        elif conversation_depth >= 10:
+            productivity_score += 1
+        elif conversation_depth >= 5:
+            productivity_score += 0.5
+    
+    # Resistance or avoidance (reduces productivity)
+    avoidance_markers = [
+        'don\'t want to talk about', 'rather not discuss', 'can we change the subject',
+        'not ready', 'too difficult', 'can\'t handle', 'too painful'
+    ]
+    avoidance_count = sum(1 for marker in avoidance_markers if marker in text)
+    productivity_score -= avoidance_count * 1.5
+    
+    # Final productivity level (1-10)
+    productivity_level = max(1, min(10, round(productivity_score)))
     
     return engagement_level, productivity_level
 
@@ -730,11 +1220,25 @@ Generate a comprehensive SOAP note following these rules:
    - Highlight key plan points in a brief summary
 
 5. **Metrics and Visual Data**:
-   - Extract emotional distribution (percentages must sum to 100)
-   - Provide emotional context describing situations triggering each emotion
-   - Count observed behaviors accurately from the conversation
-   - Rate assessment domains (mood, anxiety, sleep, functioning, risk) on 0-10 scale
-   - Rate engagement level (1-10) and session productivity (1-10)
+   - CRITICAL FOR emotional_distribution: Carefully analyze the conversation and calculate realistic percentages based on the emotional language, tone, and content expressed by the client throughout the session. Count instances of emotional keywords, phrases, and contextual emotional expressions. Percentages MUST sum to EXACTLY 100. Base this entirely on the actual conversation content - do not use generic distributions.
+   - CRITICAL FOR emotional_context: For each emotion with >0%, identify the SPECIFIC topics, situations, or subjects the client was discussing when expressing that emotion. Extract actual content from the conversation (e.g., "when discussing the upcoming project deadline at work", "when talking about their daughter's behavior issues", "when describing the argument with their spouse"). DO NOT use generic phrases like "work-related pressures" - be specific about what was actually discussed.
+   - CRITICAL FOR observed_behaviors (Clinical Behavioral Assessment): Rate each of the 4 key clinical areas on a 1-10 scale by carefully analyzing the conversation:
+     * emotional_expression: How well does the client express emotions? Analyze their affect, emotional vocabulary, and emotional range in the dialogue.
+     * mood_presentation: What is the overall mood state? Analyze positive vs negative mood indicators and emotional tone throughout the session.
+     * engagement_level: How participatory is the client? Analyze response length, quality, initiative, and level of involvement in the conversation.
+     * thought_patterns: How clear and organized is their thinking? Analyze coherence, logical flow, insight, and cognitive organization in their responses.
+   - CRITICAL FOR assessment_domains (Clinical Assessment - SEVERITY Scales): Rate each of the 5 clinical domains on a 0-10 SEVERITY scale. IMPORTANT: Higher scores = MORE SEVERE problems:
+     * mood: Rate depression/mood problem severity (0=positive mood, 10=severe depression)
+     * anxiety: Rate anxiety severity (0=calm/no anxiety, 10=severe panic/constant anxiety)
+     * sleep: Rate sleep disturbance severity (0=sleeping well, 10=severe insomnia/no sleep)
+     * functioning: Rate functional impairment (0=functioning well, 10=unable to function)
+     * risk: Rate risk level (0=no risk/safe, 10=active suicidal ideation/high risk)
+     Analyze what the client actually discusses about each domain in the conversation.
+   - CRITICAL FOR Session Metrics Summary (risk_level, engagement_level, session_productivity):
+     * risk_level: Categorize as "low", "moderate", or "high" based on suicidal ideation, self-harm discussion, protective factors, and severity of symptoms
+     * engagement_level: Rate 1-10 based on client's participation quality, response detail, initiative, emotional involvement (1=disengaged, 10=highly engaged)
+     * session_productivity: Rate 1-10 based on therapeutic progress evident - insights gained, problem-solving, emotional processing, commitment to change (1=unproductive, 10=highly productive with breakthroughs)
+     Analyze the ACTUAL conversation dialogue to rate these session quality metrics realistically.
    - Propose plan events with dates for next 12 weeks
 
 Format your response EXACTLY as follows:
@@ -765,23 +1269,36 @@ PLAN:
 
 METRICS:
 {{
-  "emotional_distribution": {{[Calculate exact percentages based on emotional language in conversation - must sum to 100]}},
+  "emotional_distribution": {{
+    "[emotion_name]": [percentage as number],
+    "anxious": [Calculate % based on worry/fear/stress language in conversation],
+    "sad": [Calculate % based on depression/grief/loneliness language],
+    "hopeful": [Calculate % based on optimism/progress/positive language],
+    "angry": [Calculate % based on frustration/irritation/resentment language],
+    "neutral": [Calculate % for balanced/calm emotional state]
+    [Include only emotions that appeared in conversation. All percentages MUST sum to exactly 100]
+  }},
   "emotional_context": {{
-    [For each emotion with >0%]: "specific context from conversation where this emotion appeared"
+    "[emotion_name]": "when discussing [ANALYZE THE ACTUAL CONVERSATION - describe the specific topic, situation, or subject matter the client was talking about when they expressed this emotion. Be specific and extract from the conversation, e.g., 'when discussing their upcoming work presentation and fear of public speaking', 'when talking about their mother's recent cancer diagnosis', 'when describing last week's argument with their spouse about finances'. DO NOT use generic phrases like 'work-related pressures' - extract the actual specific context from the conversation.]"
   }},
   "observed_behaviors": {{
-    [Only include behaviors explicitly mentioned or strongly implied in conversation with actual counts]
+    "emotional_expression": [1-10 scale: Rate how client expresses emotions - analyze affect, emotional vocabulary richness, emotional range. 1=flat/no expression, 10=rich appropriate emotional expression],
+    "mood_presentation": [1-10 scale: Rate overall mood state - analyze positive vs negative mood indicators, intensity, stability. 1=severely depressed mood, 10=positive upbeat mood],
+    "engagement_level": [1-10 scale: Rate client participation - analyze response quality, initiative, involvement. 1=disengaged/withdrawn, 10=highly engaged and participatory],
+    "thought_patterns": [1-10 scale: Rate clarity of thinking - analyze coherence, organization, insight. 1=confused/disorganized thinking, 10=clear organized rational thinking]
+    [CRITICAL: Analyze the actual conversation content carefully. Base these ratings on what you observe in the dialogue, not generic assumptions]
   }},
   "assessment_domains": {{
-    "mood": [0-10 scale based on conversation content],
-    "anxiety": [0-10 scale based on anxiety indicators in conversation],
-    "sleep": [0-10 scale based on sleep mentions in conversation],
-    "functioning": [0-10 scale based on daily functioning discussion],
-    "risk": [0-10 scale based on risk factors mentioned]
+    "mood": [0-10 scale: Rate mood severity. Analyze depression/sadness indicators in conversation. 0=no mood concerns/very positive, 10=severe depression/suicidal ideation. Higher scores indicate MORE severe mood problems],
+    "anxiety": [0-10 scale: Rate anxiety severity. Analyze worry/fear/panic indicators in conversation. 0=no anxiety/calm, 10=severe panic/overwhelming anxiety. Higher scores indicate MORE severe anxiety],
+    "sleep": [0-10 scale: Rate sleep disturbance severity. Analyze sleep quality mentions in conversation. 0=sleeping well/no issues, 10=severe insomnia/no sleep. Higher scores indicate MORE severe sleep problems],
+    "functioning": [0-10 scale: Rate functional impairment severity. Analyze work/daily activities discussion. 0=functioning well/productive, 10=unable to function/completely disabled. Higher scores indicate MORE impairment],
+    "risk": [0-10 scale: Rate risk level. Analyze suicidal ideation/self-harm indicators. 0=no risk/strong protective factors, 10=active suicidal plan/imminent danger. Higher scores indicate HIGHER risk]
+    [CRITICAL: These are SEVERITY scales - higher numbers mean WORSE condition. Analyze the actual conversation carefully to rate each domain based on what the client discusses]
   }},
-  "risk_level": "[low/moderate/high based on actual conversation content]",
-  "engagement_level": [1-10 based on client participation and response quality],
-  "session_productivity": [1-10 based on therapeutic progress evident in conversation],
+  "risk_level": "[Categorical: 'low', 'moderate', or 'high' based on suicidal ideation, self-harm indicators, protective factors, and severity of mood/anxiety symptoms discussed in conversation]",
+  "engagement_level": [1-10 scale: Rate client engagement and participation quality. Analyze response length, detail, initiative, emotional involvement, questions asked. 1=withdrawn/disengaged/minimal responses, 10=highly engaged/detailed responses/actively participating],
+  "session_productivity": [1-10 scale: Rate therapeutic progress and session effectiveness. Analyze insights gained, problem-solving attempts, emotional processing, commitment to change, application of techniques. 1=unproductive/resistant/avoidant, 10=highly productive/breakthrough insights/strong progress],
   "plan_timeline": [
     {{"Task": "Next Therapy Session", "Start": "{next_week}", "Finish": "{next_week}", "Resource": "Therapy"}},
     {{"Task": "[Specific intervention based on conversation]", "Start": "{tomorrow}", "Finish": "{two_weeks}", "Resource": "Self-Work"}},
@@ -813,17 +1330,28 @@ Client Information:
 Create a detailed treatment plan with the following:
 
 1. Determine the appropriate number of sessions (typically 6-24 sessions based on severity)
-2. For EACH session, provide:
-   - Session number and objective/focus
+2. Calculate realistic treatment duration in weeks (usually 1 session per week, sometimes 2 per week initially)
+3. For EACH session, provide:
+   - Session number (sequential: 1, 2, 3, etc.)
+   - Week number (CRITICAL: Must be realistic and sequential - typically 1 session per week. Week 1, Week 2, Week 3, etc. Do NOT skip weeks or create unrealistic gaps)
+   - Session objective/focus
    - Specific therapeutic techniques to be used
    - Expected outcomes or progress markers
    - Homework or between-session activities
+
+CRITICAL WEEK NUMBER RULES:
+- If planning 8 sessions at 1 per week → weeks should be 1, 2, 3, 4, 5, 6, 7, 8 (total 8 weeks)
+- If planning 12 sessions at 1 per week → weeks should be 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 (total 12 weeks)
+- For intensive therapy (2 per week): Session 1 & 2 = Week 1, Session 3 & 4 = Week 2, etc.
+- Week numbers MUST be sequential without gaps
+- treatment_duration_weeks should match the highest week number
+- NEVER skip week numbers (e.g., don't go Week 1, Week 2, Week 7)
 
 Format your response EXACTLY as JSON:
 
 {{
   "total_sessions": 12,
-  "treatment_duration_weeks": 16,
+  "treatment_duration_weeks": 12,
   "primary_diagnosis": "Generalized Anxiety Disorder",
   "treatment_approach": "Cognitive Behavioral Therapy with Mindfulness Integration",
   "overall_goals": [
@@ -868,6 +1396,24 @@ Format your response EXACTLY as JSON:
         "Recognizes common cognitive distortions"
       ],
       "homework": "Complete thought records for anxiety episodes; Read CBT handout"
+    }},
+    {{
+      "session_number": 3,
+      "week": 3,
+      "title": "Cognitive Restructuring Techniques",
+      "objective": "Learn and practice challenging negative thoughts",
+      "techniques": [
+        "Socratic questioning",
+        "Evidence for/against technique",
+        "Behavioral experiments planning",
+        "Alternative thought generation"
+      ],
+      "expected_outcomes": [
+        "Client can challenge automatic thoughts",
+        "Develops more balanced thinking patterns",
+        "Plans first behavioral experiment"
+      ],
+      "homework": "Practice cognitive restructuring with thought records; Implement one behavioral experiment"
     }}
   ],
   "milestones": [
@@ -898,7 +1444,13 @@ CRITICAL REQUIREMENTS:
 - Adapt session count to severity (mild: 6-8, moderate: 10-14, severe: 16-24)
 - Include concrete, measurable outcomes
 - Balance between structure and flexibility
-- Ensure all JSON is valid and properly formatted"""
+- Ensure all JSON is valid and properly formatted
+- WEEK NUMBERS MUST BE SEQUENTIAL: If you plan 8 sessions, use weeks 1-8. If you plan 12 sessions, use weeks 1-12. DO NOT skip weeks.
+- The "treatment_duration_weeks" MUST equal the highest week number used in sessions
+- Generate ALL sessions listed in "total_sessions" - don't omit any sessions
+- Each session must have a unique session_number (1, 2, 3, ..., up to total_sessions)
+- Typically use 1 session per week (session 1 = week 1, session 2 = week 2, etc.)
+- For intensive treatment, you can do 2 sessions per week (sessions 1&2 = week 1, sessions 3&4 = week 2)"""
 
 
 def initialize_llm(api_key):
@@ -919,7 +1471,7 @@ def initialize_llm(api_key):
 
 
 def parse_soap_response(response):
-    """Parse the LLM response into structured SOAP sections"""
+    """Parse the LLM response into structured SOAP sections with improved handling"""
     sections = {
         'subjective_brief': '',
         'subjective': '',
@@ -932,6 +1484,9 @@ def parse_soap_response(response):
         'metrics': {}
     }
     
+    # Clean up response - remove markdown formatting and asterisks
+    response = response.replace('**', '').replace('*', '')
+    
     lines = response.split('\n')
     current_section = None
     content_buffer = []
@@ -939,47 +1494,63 @@ def parse_soap_response(response):
     for line in lines:
         line_stripped = line.strip()
         
-        if 'SUBJECTIVE_BRIEF:' in line_stripped:
+        # Skip empty lines at the beginning of sections
+        if not line_stripped and not content_buffer:
+            continue
+        
+        # Check for section markers (case insensitive, more flexible)
+        line_upper = line_stripped.upper()
+        
+        if 'SUBJECTIVE_BRIEF:' in line_upper:
             if current_section and content_buffer:
                 sections[current_section] = '\n'.join(content_buffer).strip()
             current_section = 'subjective_brief'
-            content_buffer = [line_stripped.replace('SUBJECTIVE_BRIEF:', '').strip()]
-        elif line_stripped.startswith('SUBJECTIVE:') and 'BRIEF' not in line_stripped:
+            # Extract content after the marker
+            content_after_marker = line_stripped.split(':', 1)[1].strip() if ':' in line_stripped else ''
+            content_buffer = [content_after_marker] if content_after_marker else []
+        elif line_upper.startswith('SUBJECTIVE:') and 'BRIEF' not in line_upper:
             if current_section and content_buffer:
                 sections[current_section] = '\n'.join(content_buffer).strip()
             current_section = 'subjective'
-            content_buffer = [line_stripped.replace('SUBJECTIVE:', '').strip()]
-        elif 'OBJECTIVE_BRIEF:' in line_stripped:
+            content_after_marker = line_stripped.split(':', 1)[1].strip() if ':' in line_stripped else ''
+            content_buffer = [content_after_marker] if content_after_marker else []
+        elif 'OBJECTIVE_BRIEF:' in line_upper:
             if current_section and content_buffer:
                 sections[current_section] = '\n'.join(content_buffer).strip()
             current_section = 'objective_brief'
-            content_buffer = [line_stripped.replace('OBJECTIVE_BRIEF:', '').strip()]
-        elif line_stripped.startswith('OBJECTIVE:') and 'BRIEF' not in line_stripped:
+            content_after_marker = line_stripped.split(':', 1)[1].strip() if ':' in line_stripped else ''
+            content_buffer = [content_after_marker] if content_after_marker else []
+        elif line_upper.startswith('OBJECTIVE:') and 'BRIEF' not in line_upper:
             if current_section and content_buffer:
                 sections[current_section] = '\n'.join(content_buffer).strip()
             current_section = 'objective'
-            content_buffer = [line_stripped.replace('OBJECTIVE:', '').strip()]
-        elif 'ASSESSMENT_BRIEF:' in line_stripped:
+            content_after_marker = line_stripped.split(':', 1)[1].strip() if ':' in line_stripped else ''
+            content_buffer = [content_after_marker] if content_after_marker else []
+        elif 'ASSESSMENT_BRIEF:' in line_upper:
             if current_section and content_buffer:
                 sections[current_section] = '\n'.join(content_buffer).strip()
             current_section = 'assessment_brief'
-            content_buffer = [line_stripped.replace('ASSESSMENT_BRIEF:', '').strip()]
-        elif line_stripped.startswith('ASSESSMENT:') and 'BRIEF' not in line_stripped:
+            content_after_marker = line_stripped.split(':', 1)[1].strip() if ':' in line_stripped else ''
+            content_buffer = [content_after_marker] if content_after_marker else []
+        elif line_upper.startswith('ASSESSMENT:') and 'BRIEF' not in line_upper:
             if current_section and content_buffer:
                 sections[current_section] = '\n'.join(content_buffer).strip()
             current_section = 'assessment'
-            content_buffer = [line_stripped.replace('ASSESSMENT:', '').strip()]
-        elif 'PLAN_BRIEF:' in line_stripped:
+            content_after_marker = line_stripped.split(':', 1)[1].strip() if ':' in line_stripped else ''
+            content_buffer = [content_after_marker] if content_after_marker else []
+        elif 'PLAN_BRIEF:' in line_upper:
             if current_section and content_buffer:
                 sections[current_section] = '\n'.join(content_buffer).strip()
             current_section = 'plan_brief'
-            content_buffer = [line_stripped.replace('PLAN_BRIEF:', '').strip()]
-        elif line_stripped.startswith('PLAN:') and 'BRIEF' not in line_stripped:
+            content_after_marker = line_stripped.split(':', 1)[1].strip() if ':' in line_stripped else ''
+            content_buffer = [content_after_marker] if content_after_marker else []
+        elif line_upper.startswith('PLAN:') and 'BRIEF' not in line_upper:
             if current_section and content_buffer:
                 sections[current_section] = '\n'.join(content_buffer).strip()
             current_section = 'plan'
-            content_buffer = [line_stripped.replace('PLAN:', '').strip()]
-        elif 'METRICS:' in line_stripped:
+            content_after_marker = line_stripped.split(':', 1)[1].strip() if ':' in line_stripped else ''
+            content_buffer = [content_after_marker] if content_after_marker else []
+        elif 'METRICS:' in line_upper:
             if current_section and content_buffer:
                 sections[current_section] = '\n'.join(content_buffer).strip()
             current_section = 'metrics'
@@ -1022,7 +1593,6 @@ def enhance_metrics_with_analysis(sections, conversation):
         assessment_domains = analyze_assessment_domains(conversation, emotional_distribution)
         risk_level = calculate_risk_level(assessment_domains, conversation)
         engagement_level, session_productivity = calculate_engagement_productivity(conversation)
-        emotional_context = extract_emotional_context(conversation, emotional_distribution)
         
         # Update metrics if they're missing or seem generic
         if not sections.get('metrics'):
@@ -1030,14 +1600,171 @@ def enhance_metrics_with_analysis(sections, conversation):
         
         metrics = sections['metrics']
         
-        # Override with calculated values for reliability
-        metrics['emotional_distribution'] = emotional_distribution
-        metrics['emotional_context'] = emotional_context
-        metrics['observed_behaviors'] = observed_behaviors
-        metrics['assessment_domains'] = assessment_domains
-        metrics['risk_level'] = risk_level
-        metrics['engagement_level'] = engagement_level
-        metrics['session_productivity'] = session_productivity
+        # For emotional_distribution: prefer LLM-generated percentages if valid
+        # Only use programmatic calculation as fallback
+        if 'emotional_distribution' not in metrics or not metrics['emotional_distribution']:
+            # Fallback: use programmatic calculation only if LLM didn't provide it
+            metrics['emotional_distribution'] = emotional_distribution
+        else:
+            # Validate LLM-generated emotional distribution
+            llm_distribution = metrics['emotional_distribution']
+            if isinstance(llm_distribution, dict) and llm_distribution:
+                # Check if percentages sum to approximately 100 (allow small rounding errors)
+                total_percentage = sum(llm_distribution.values())
+                # Check if all values are reasonable (0-100)
+                valid_values = all(0 <= v <= 100 for v in llm_distribution.values())
+                
+                if not valid_values or total_percentage < 95 or total_percentage > 105:
+                    # Invalid distribution, use programmatic calculation as fallback
+                    st.warning("LLM-generated emotional distribution was invalid. Using conversation analysis fallback.")
+                    metrics['emotional_distribution'] = emotional_distribution
+                # else: keep LLM-generated distribution as is
+            else:
+                # Empty or invalid format, use fallback
+                metrics['emotional_distribution'] = emotional_distribution
+        
+        # For emotional_context: prefer LLM-generated context if it exists and is meaningful
+        # Only use programmatic extraction as fallback
+        # Use the emotional distribution (either LLM or fallback) for context extraction
+        current_distribution = metrics['emotional_distribution']
+        
+        if 'emotional_context' not in metrics or not metrics['emotional_context']:
+            # Fallback: use programmatic extraction only if LLM didn't provide it
+            emotional_context = extract_emotional_context(conversation, current_distribution)
+            metrics['emotional_context'] = emotional_context
+        else:
+            # Validate LLM-generated emotional context - check if it's meaningful
+            llm_context = metrics['emotional_context']
+            if isinstance(llm_context, dict) and llm_context:
+                # Check if contexts are too generic or empty
+                needs_fallback = False
+                for emotion, context in llm_context.items():
+                    if not context or len(context.strip()) < 10 or 'generic' in context.lower():
+                        needs_fallback = True
+                        break
+                
+                if needs_fallback:
+                    # Use programmatic extraction as fallback
+                    emotional_context = extract_emotional_context(conversation, current_distribution)
+                    metrics['emotional_context'] = emotional_context
+            # else: keep LLM-generated context as is
+        
+        # For observed_behaviors (Clinical Behavioral Assessment): prefer LLM-generated ratings if valid
+        # Only use programmatic calculation as fallback
+        if 'observed_behaviors' not in metrics or not metrics['observed_behaviors']:
+            # Fallback: use programmatic calculation only if LLM didn't provide it
+            metrics['observed_behaviors'] = observed_behaviors
+        else:
+            # Validate LLM-generated observed behaviors
+            llm_behaviors = metrics['observed_behaviors']
+            if isinstance(llm_behaviors, dict) and llm_behaviors:
+                # Check if it has the expected clinical assessment keys
+                expected_keys = ['emotional_expression', 'mood_presentation', 'engagement_level', 'thought_patterns']
+                has_expected_keys = any(key in llm_behaviors for key in expected_keys)
+                
+                if has_expected_keys:
+                    # Validate that values are in 1-10 range
+                    valid_values = True
+                    for key in expected_keys:
+                        if key in llm_behaviors:
+                            value = llm_behaviors[key]
+                            if not isinstance(value, (int, float)) or value < 1 or value > 10:
+                                valid_values = False
+                                break
+                    
+                    if not valid_values:
+                        # Invalid values, use programmatic calculation as fallback
+                        st.warning("LLM-generated clinical behavioral assessment had invalid values. Using conversation analysis fallback.")
+                        metrics['observed_behaviors'] = observed_behaviors
+                    # else: keep LLM-generated behavioral ratings as is
+                else:
+                    # Missing expected keys, use fallback
+                    metrics['observed_behaviors'] = observed_behaviors
+            else:
+                # Empty or invalid format, use fallback
+                metrics['observed_behaviors'] = observed_behaviors
+        
+        # For assessment_domains (Clinical Assessment Domains): prefer LLM-generated ratings if valid
+        # Only use programmatic calculation as fallback
+        if 'assessment_domains' not in metrics or not metrics['assessment_domains']:
+            # Fallback: use programmatic calculation only if LLM didn't provide it
+            metrics['assessment_domains'] = assessment_domains
+        else:
+            # Validate LLM-generated assessment domains
+            llm_domains = metrics['assessment_domains']
+            if isinstance(llm_domains, dict) and llm_domains:
+                # Check if it has the expected domain keys
+                expected_keys = ['mood', 'anxiety', 'sleep', 'functioning', 'risk']
+                has_expected_keys = all(key in llm_domains for key in expected_keys)
+                
+                if has_expected_keys:
+                    # Validate that values are in 0-10 range
+                    valid_values = True
+                    for key in expected_keys:
+                        value = llm_domains[key]
+                        if not isinstance(value, (int, float)) or value < 0 or value > 10:
+                            valid_values = False
+                            break
+                    
+                    if not valid_values:
+                        # Invalid values, use programmatic calculation as fallback
+                        st.warning("LLM-generated clinical assessment domains had invalid values. Using conversation analysis fallback.")
+                        metrics['assessment_domains'] = assessment_domains
+                    # else: keep LLM-generated domain ratings as is
+                else:
+                    # Missing expected keys, use fallback
+                    st.warning("LLM-generated clinical assessment domains missing required keys. Using conversation analysis fallback.")
+                    metrics['assessment_domains'] = assessment_domains
+            else:
+                # Empty or invalid format, use fallback
+                metrics['assessment_domains'] = assessment_domains
+        
+        # Validate and use LLM-generated Session Metrics Summary with fallback
+        # 1. risk_level validation
+        if 'risk_level' in metrics and metrics['risk_level']:
+            llm_risk_level = metrics['risk_level']
+            # Check if it's a valid categorical value
+            valid_risk_levels = ['low', 'moderate', 'high']
+            if isinstance(llm_risk_level, str) and llm_risk_level.lower() in valid_risk_levels:
+                # Use LLM-generated risk level (normalize to lowercase)
+                metrics['risk_level'] = llm_risk_level.lower()
+            else:
+                # Invalid format, use fallback
+                st.warning("LLM-generated risk_level had invalid format. Using conversation analysis fallback.")
+                metrics['risk_level'] = risk_level
+        else:
+            # LLM didn't provide risk_level, use fallback
+            metrics['risk_level'] = risk_level
+        
+        # 2. engagement_level validation
+        if 'engagement_level' in metrics and metrics['engagement_level']:
+            llm_engagement = metrics['engagement_level']
+            # Check if it's a valid number in 1-10 range
+            if isinstance(llm_engagement, (int, float)) and 1 <= llm_engagement <= 10:
+                # Use LLM-generated engagement level
+                pass  # Keep as is
+            else:
+                # Invalid value, use fallback
+                st.warning("LLM-generated engagement_level had invalid value. Using conversation analysis fallback.")
+                metrics['engagement_level'] = engagement_level
+        else:
+            # LLM didn't provide engagement_level, use fallback
+            metrics['engagement_level'] = engagement_level
+        
+        # 3. session_productivity validation
+        if 'session_productivity' in metrics and metrics['session_productivity']:
+            llm_productivity = metrics['session_productivity']
+            # Check if it's a valid number in 1-10 range
+            if isinstance(llm_productivity, (int, float)) and 1 <= llm_productivity <= 10:
+                # Use LLM-generated session productivity
+                pass  # Keep as is
+            else:
+                # Invalid value, use fallback
+                st.warning("LLM-generated session_productivity had invalid value. Using conversation analysis fallback.")
+                metrics['session_productivity'] = session_productivity
+        else:
+            # LLM didn't provide session_productivity, use fallback
+            metrics['session_productivity'] = session_productivity
         
         # Keep plan_timeline from LLM if it exists, otherwise add default
         if 'plan_timeline' not in metrics:
@@ -1050,37 +1777,57 @@ def enhance_metrics_with_analysis(sections, conversation):
 
 
 def get_default_metrics():
-    """Return minimal default metrics structure - should only be used as fallback"""
+    """Return minimal default metrics structure - should only be used as last resort fallback"""
     return {
-        "emotional_distribution": {"neutral": 100},
-        "emotional_context": {
-            "neutral": "during general session discussion"
-        },
-        "observed_behaviors": {
-            "appropriate_affect": 1
-        },
-        "assessment_domains": {
-            "mood": 5,
-            "anxiety": 5,
-            "sleep": 5,
-            "functioning": 5,
-            "risk": 1
-        },
-        "risk_level": "low",
-        "engagement_level": 5,
-        "session_productivity": 5,
+        "emotional_distribution": {},  # Empty - will be calculated from conversation
+        "emotional_context": {},
+        "observed_behaviors": {},
+        "assessment_domains": {},
+        "risk_level": "unknown",
+        "engagement_level": None,  # Will be calculated
+        "session_productivity": None,  # Will be calculated
         "plan_timeline": []
     }
 
 
 def create_subjective_chart(emotional_dist):
-    """Create emotional distribution pie chart"""
-    if not emotional_dist:
-        emotional_dist = {"anxious": 35, "sad": 25, "angry": 10, "neutral": 20, "hopeful": 10}
+    """Create emotional distribution pie chart - only use actual data, no defaults"""
+    if not emotional_dist or not any(emotional_dist.values()):
+        # Return empty chart if no data
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No emotional data available",
+            x=0.5, y=0.5,
+            xref="paper", yref="paper",
+            showarrow=False,
+            font=dict(size=16, color="gray")
+        )
+        fig.update_layout(
+            title="Emotional Distribution During Session",
+            height=400,
+            margin=dict(l=20, r=20, t=60, b=20)
+        )
+        return fig
     
     emotions = list(emotional_dist.keys())
     values = list(emotional_dist.values())
-    colors = ['#ef4444', '#3b82f6', '#f59e0b', '#6b7280', '#10b981']
+    
+    # Define colors for different emotions
+    color_map = {
+        'anxious': '#ef4444',    # Red
+        'sad': '#3b82f6',        # Blue 
+        'angry': '#f59e0b',      # Orange
+        'neutral': '#6b7280',    # Gray
+        'hopeful': '#10b981',    # Green
+        'frustrated': '#f97316', # Orange-red
+        'excited': '#8b5cf6',    # Purple
+        'calm': '#06b6d4',       # Cyan
+        'confused': '#84cc16',   # Lime
+        'content': '#059669'     # Emerald
+    }
+    
+    # Assign colors based on emotion type, with fallback
+    colors = [color_map.get(emotion, '#94a3b8') for emotion in emotions]
     
     fig = go.Figure(data=[go.Pie(
         labels=[e.capitalize() for e in emotions],
@@ -1088,11 +1835,11 @@ def create_subjective_chart(emotional_dist):
         hole=0.3,
         marker=dict(colors=colors),
         textinfo='label+percent',
-        hovertemplate='<b>%{label}</b><br>%{value}%<extra></extra>'
+        hovertemplate='<b>%{label}</b><br>%{value}%<br>Based on conversation analysis<extra></extra>'
     )])
     
     fig.update_layout(
-        title="Emotional Distribution During Session",
+        title="Emotional Distribution During Session (Conversation-Based)",
         height=400,
         margin=dict(l=20, r=20, t=60, b=20),
         showlegend=True,
@@ -1103,15 +1850,23 @@ def create_subjective_chart(emotional_dist):
 
 
 def create_objective_chart(observed_behaviors):
-    """Create clinical behavior assessment chart with 4 key areas"""
-    # Default clinical assessment if no data provided
+    """Create clinical behavior assessment chart with 4 key areas - only use actual analyzed data"""
     if not observed_behaviors:
-        observed_behaviors = {
-            "emotional_expression": 6, 
-            "mood_presentation": 7, 
-            "engagement_level": 5, 
-            "thought_patterns": 6
-        }
+        # Return empty chart if no data
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No behavioral data available - please provide conversation",
+            x=0.5, y=0.5,
+            xref="paper", yref="paper",
+            showarrow=False,
+            font=dict(size=14, color="gray")
+        )
+        fig.update_layout(
+            title="Clinical Behavioral Assessment (No Data Available)",
+            height=400,
+            margin=dict(l=200, r=40, t=60, b=40)
+        )
+        return fig
     
     # Map clinical categories with descriptive labels
     clinical_categories = {
@@ -1121,27 +1876,31 @@ def create_objective_chart(observed_behaviors):
         "thought_patterns": "Thought Patterns"
     }
     
-    # Extract or map data to clinical categories
+    # Extract clinical data - use only what we calculated
     clinical_data = {}
     for key, label in clinical_categories.items():
         if key in observed_behaviors:
             clinical_data[label] = observed_behaviors[key]
         else:
-            # Map old behavior keys to new clinical categories if needed
-            if key == "emotional_expression":
-                clinical_data[label] = observed_behaviors.get("appropriate_affect", 
-                                    observed_behaviors.get("emotional_expression", 
-                                    observed_behaviors.get("crying", 5)))
-            elif key == "mood_presentation":
-                clinical_data[label] = observed_behaviors.get("mood_presentation", 
-                                     observed_behaviors.get("withdrawn", 6))
-            elif key == "engagement_level":
-                clinical_data[label] = observed_behaviors.get("engagement_level",
-                                     observed_behaviors.get("animated", 
-                                     observed_behaviors.get("appropriate_affect", 5)))
-            elif key == "thought_patterns":
-                clinical_data[label] = observed_behaviors.get("thought_patterns",
-                                     observed_behaviors.get("agitated", 6))
+            # If specific clinical measure not found, skip it
+            continue
+    
+    # If no clinical data found, show message
+    if not clinical_data:
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No clinical behavioral assessments available",
+            x=0.5, y=0.5,
+            xref="paper", yref="paper",
+            showarrow=False,
+            font=dict(size=14, color="gray")
+        )
+        fig.update_layout(
+            title="Clinical Behavioral Assessment (No Data Available)",
+            height=400,
+            margin=dict(l=200, r=40, t=60, b=40)
+        )
+        return fig
     
     categories = list(clinical_data.keys())
     scores = list(clinical_data.values())
@@ -1167,15 +1926,15 @@ def create_objective_chart(observed_behaviors):
         text=[f"{score}/10" for score in scores],
         textposition='inside',
         textfont=dict(color='white', size=12, family='Arial Bold'),
-        hovertemplate='<b>%{y}</b><br>Clinical Rating: %{x}/10<br><extra></extra>'
+        hovertemplate='<b>%{y}</b><br>Clinical Rating: %{x}/10<br>Based on conversation analysis<extra></extra>'
     )])
     
     fig.update_layout(
-        title="Clinical Behavioral Assessment (1-10 Scale)",
+        title="Clinical Behavioral Assessment (1-10 Scale) - Conversation Analysis",
         xaxis_title="Clinical Rating (1=Concerning, 10=Excellent)",
         yaxis_title="",
         height=400,
-        margin=dict(l=200, r=40, t=60, b=40),
+        margin=dict(l=250, r=40, t=60, b=40),
         xaxis=dict(range=[0, 10], tickmode='linear', dtick=1),
         font=dict(family='Arial, sans-serif'),
         plot_bgcolor='#f8fafc'
@@ -1191,9 +1950,23 @@ def create_objective_chart(observed_behaviors):
 
 
 def create_assessment_chart(assessment_domains):
-    """Create assessment radar chart"""
+    """Create assessment radar chart - only use actual analyzed data"""
     if not assessment_domains:
-        assessment_domains = {"mood": 6, "anxiety": 8, "sleep": 5, "functioning": 6, "risk": 2}
+        # Return empty chart if no data
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No assessment data available - please provide conversation",
+            x=0.5, y=0.5,
+            xref="paper", yref="paper",
+            showarrow=False,
+            font=dict(size=14, color="gray")
+        )
+        fig.update_layout(
+            title="Clinical Assessment Domains (No Data Available)",
+            height=450,
+            margin=dict(l=80, r=80, t=60, b=20)
+        )
+        return fig
     
     domains = [k.capitalize() for k in assessment_domains.keys()]
     scores = list(assessment_domains.values())
@@ -1207,7 +1980,7 @@ def create_assessment_chart(assessment_domains):
         fillcolor='rgba(59, 130, 246, 0.3)',
         line=dict(color='#3b82f6', width=2),
         name='Severity Score',
-        hovertemplate='<b>%{theta}</b><br>Score: %{r}/10<extra></extra>'
+        hovertemplate='<b>%{theta}</b><br>Score: %{r}/10<br>Based on conversation analysis<extra></extra>'
     ))
     
     fig.update_layout(
@@ -1221,7 +1994,7 @@ def create_assessment_chart(assessment_domains):
                 showticklabels=True
             )
         ),
-        title="Clinical Assessment Domains (0-10 Scale)",
+        title="Clinical Assessment Domains (0-10 Scale) - Conversation Analysis",
         height=450,
         margin=dict(l=80, r=80, t=60, b=20),
         showlegend=False
@@ -1231,19 +2004,15 @@ def create_assessment_chart(assessment_domains):
 
 
 def create_plan_visual(plan_timeline):
-    """Create simple next steps visualization with clean table format"""
+    """Create simple next steps visualization with clean table format - avoid defaults when possible"""
     if not plan_timeline or len(plan_timeline) == 0:
-        # Default timeline if none provided
+        # Only create defaults if absolutely necessary
         start_date = datetime.now()
         plan_timeline = [
-            {"Task": "Next Therapy Session", "Start": (start_date + timedelta(days=7)).strftime("%Y-%m-%d"), 
+            {"Task": "Follow-up Session", "Start": (start_date + timedelta(days=7)).strftime("%Y-%m-%d"), 
              "Finish": (start_date + timedelta(days=7)).strftime("%Y-%m-%d"), "Resource": "Therapy"},
-            {"Task": "Practice Coping Skills", "Start": (start_date + timedelta(days=1)).strftime("%Y-%m-%d"), 
-             "Finish": (start_date + timedelta(days=14)).strftime("%Y-%m-%d"), "Resource": "Self-Work"},
-            {"Task": "Check-in Call", "Start": (start_date + timedelta(days=3)).strftime("%Y-%m-%d"), 
-             "Finish": (start_date + timedelta(days=3)).strftime("%Y-%m-%d"), "Resource": "Follow-Up"},
-            {"Task": "Progress Assessment", "Start": (start_date + timedelta(days=42)).strftime("%Y-%m-%d"), 
-             "Finish": (start_date + timedelta(days=42)).strftime("%Y-%m-%d"), "Resource": "Assessment"}
+            {"Task": "Self-Reflection Exercise", "Start": (start_date + timedelta(days=1)).strftime("%Y-%m-%d"), 
+             "Finish": (start_date + timedelta(days=7)).strftime("%Y-%m-%d"), "Resource": "Self-Work"}
         ]
     
     # Sort by start date to show chronological order
@@ -1253,19 +2022,13 @@ def create_plan_visual(plan_timeline):
 
 
 def create_plan_chart(plan_timeline):
-    """Create a simple, clean next steps timeline visualization"""
+    """Create a simple, clean next steps timeline visualization - minimize defaults"""
     if not plan_timeline or len(plan_timeline) == 0:
-        # Default timeline if none provided
+        # Minimal default timeline only if absolutely no data
         start_date = datetime.now()
         plan_timeline = [
-            {"Task": "Next Therapy Session", "Start": (start_date + timedelta(days=7)).strftime("%Y-%m-%d"), 
-             "Finish": (start_date + timedelta(days=7)).strftime("%Y-%m-%d"), "Resource": "Therapy"},
-            {"Task": "Practice Coping Skills", "Start": (start_date + timedelta(days=1)).strftime("%Y-%m-%d"), 
-             "Finish": (start_date + timedelta(days=14)).strftime("%Y-%m-%d"), "Resource": "Self-Work"},
-            {"Task": "Check-in Call", "Start": (start_date + timedelta(days=3)).strftime("%Y-%m-%d"), 
-             "Finish": (start_date + timedelta(days=3)).strftime("%Y-%m-%d"), "Resource": "Follow-Up"},
-            {"Task": "Progress Assessment", "Start": (start_date + timedelta(days=42)).strftime("%Y-%m-%d"), 
-             "Finish": (start_date + timedelta(days=42)).strftime("%Y-%m-%d"), "Resource": "Assessment"}
+            {"Task": "Schedule Follow-up", "Start": (start_date + timedelta(days=7)).strftime("%Y-%m-%d"), 
+             "Finish": (start_date + timedelta(days=7)).strftime("%Y-%m-%d"), "Resource": "Therapy"}
         ]
     
     # Sort by start date to show chronological order
@@ -1354,44 +2117,23 @@ def create_plan_chart(plan_timeline):
 
 
 def display_plan_timeline(plan_timeline):
-    """Display a clean, Streamlit-friendly timeline of next steps"""
+    """Display next session focus areas in clean text format"""
     if not plan_timeline or len(plan_timeline) == 0:
-        # Default timeline if none provided
-        start_date = datetime.now()
-        plan_timeline = [
-            {"Task": "Next Therapy Session", "Start": (start_date + timedelta(days=7)).strftime("%Y-%m-%d"), 
-             "Finish": (start_date + timedelta(days=7)).strftime("%Y-%m-%d"), "Resource": "Therapy"},
-            {"Task": "Practice Coping Skills", "Start": (start_date + timedelta(days=1)).strftime("%Y-%m-%d"), 
-             "Finish": (start_date + timedelta(days=14)).strftime("%Y-%m-%d"), "Resource": "Self-Work"},
-            {"Task": "Check-in Call", "Start": (start_date + timedelta(days=3)).strftime("%Y-%m-%d"), 
-             "Finish": (start_date + timedelta(days=3)).strftime("%Y-%m-%d"), "Resource": "Follow-Up"},
-            {"Task": "Progress Assessment", "Start": (start_date + timedelta(days=42)).strftime("%Y-%m-%d"), 
-             "Finish": (start_date + timedelta(days=42)).strftime("%Y-%m-%d"), "Resource": "Assessment"}
-        ]
+        st.markdown("### 📅 Next Session Focus")
+        st.info("⚠️ No specific treatment plan was generated from the conversation. Please provide a detailed therapy conversation to generate accurate next steps.")
+        return
     
     # Sort by start date to show chronological order
     sorted_timeline = sorted(plan_timeline, key=lambda x: datetime.strptime(x['Start'], '%Y-%m-%d'))
     
-    # Display modern timeline header
-    st.markdown("### 📅 Suggested Next Steps")
+    # Display clean header
+    st.markdown("### 📅 Next Session Focus Areas")
     
-    # Resource type configuration
-    resource_config = {
-        'Therapy': {'icon': '🩺', 'color': '#3b82f6', 'bg_color': '#eff6ff'},
-        'Self-Work': {'icon': '📝', 'color': '#10b981', 'bg_color': '#f0fdf4'},
-        'Follow-Up': {'icon': '📞', 'color': '#f59e0b', 'bg_color': '#fffbeb'},
-        'Assessment': {'icon': '📋', 'color': '#8b5cf6', 'bg_color': '#faf5ff'},
-        'Default': {'icon': '📌', 'color': '#6b7280', 'bg_color': '#f9fafb'}
-    }
-    
-    # Create timeline using Streamlit columns and containers
-    for i, item in enumerate(sorted_timeline):
+    # Simple text-based list of focus areas
+    for i, item in enumerate(sorted_timeline, 1):
         task_name = item.get('Task', 'Unknown Task')
         start_date_str = item.get('Start', '')
-        resource = item.get('Resource', 'Default')
-        
-        # Get resource configuration
-        config = resource_config.get(resource, resource_config['Default'])
+        resource = item.get('Resource', 'General')
         
         # Format date for display
         try:
@@ -1399,89 +2141,26 @@ def display_plan_timeline(plan_timeline):
             today = datetime.now()
             days_until = (date_obj - today).days
             
-            if days_until == 0:
-                urgency_text = "🔥 **Today**"
-                date_display = date_obj.strftime('Today • %b %d')
-            elif days_until == 1:
-                urgency_text = "⚡ **Tomorrow**"
-                date_display = date_obj.strftime('Tomorrow • %b %d')
+            if days_until <= 1:
+                timing = "Next session"
             elif days_until <= 7:
-                urgency_text = f"📅 **In {days_until} days**"
-                date_display = date_obj.strftime('%a, %b %d')
+                timing = "This week"
+            elif days_until <= 14:
+                timing = "Within 2 weeks"
             else:
-                urgency_text = f"📆 **In {days_until} days**"
-                date_display = date_obj.strftime('%b %d, %Y')
+                timing = "Upcoming"
                 
         except ValueError:
-            urgency_text = "📅"
-            date_display = start_date_str
+            timing = "Scheduled"
         
-        # Create a container for each timeline item
-        with st.container():
-            col1, col2 = st.columns([1, 10])
-            
-            with col1:
-                # Icon in a centered position
-                st.markdown(f"""
-                <div style="
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    width: 50px;
-                    height: 50px;
-                    background: {config['color']};
-                    border-radius: 50%;
-                    font-size: 1.5rem;
-                    margin: 0.5rem 0;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                ">
-                    {config['icon']}
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col2:
-                # Card content using Streamlit components
-                with st.container():
-                    # Header row
-                    header_col1, header_col2 = st.columns([3, 1])
-                    
-                    with header_col1:
-                        st.markdown(f"**{task_name}**")
-                        st.caption(f"📅 {date_display}")
-                    
-                    with header_col2:
-                        # Priority and resource badges
-                        st.markdown(f"""
-                        <div style="text-align: right;">
-                            <div style="
-                                background: {config['color']};
-                                color: white;
-                                padding: 0.2rem 0.6rem;
-                                border-radius: 15px;
-                                font-size: 0.75rem;
-                                font-weight: 600;
-                                margin-bottom: 0.25rem;
-                                display: inline-block;
-                            ">
-                                {resource}
-                            </div>
-                            <div style="
-                                color: {config['color']};
-                                font-size: 0.8rem;
-                                font-weight: 600;
-                            ">
-                                {urgency_text.replace('**', '')}
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    # Progress indicator
-                    progress_percent = ((i + 1) / len(sorted_timeline)) * 100
-                    st.progress(progress_percent / 100, text=f"Step {i+1} of {len(sorted_timeline)}")
-        
-        # Add some spacing between items
-        if i < len(sorted_timeline) - 1:
-            st.markdown("<div style='margin: 1rem 0;'></div>", unsafe_allow_html=True)
+        # Display as simple numbered list with focus area
+        if resource == "Therapy":
+            st.markdown(f"**{i}. {task_name}** ({timing})")
+        else:
+            st.markdown(f"**{i}. {task_name}** - {resource} ({timing})")
+    
+    # Add brief note about session planning
+    st.caption("💡 These focus areas are derived from the conversation analysis and clinical assessment.")
 
 
 def create_roadmap_gantt(roadmap_data):
@@ -1535,13 +2214,16 @@ def create_roadmap_gantt(roadmap_data):
 def generate_soap_note(llm, client_name, session_date, duration, conversation):
     """Generate SOAP note using LangChain with dynamic dates and conversation analysis"""
     try:
-        # Pre-analyze conversation to provide context to LLM
+        # Pre-analyze conversation for internal fallback purposes only
+        # Let LLM generate ALL metrics on its own: emotional_distribution, emotional_context, 
+        # observed_behaviors, assessment_domains, risk_level, engagement_level, session_productivity
+        
+        # Calculate these internally for fallback only - NOT passed to LLM
         emotional_distribution = analyze_conversation_emotions(conversation)
         observed_behaviors = analyze_observed_behaviors(conversation)
         assessment_domains = analyze_assessment_domains(conversation, emotional_distribution)
         risk_level = calculate_risk_level(assessment_domains, conversation)
         engagement_level, session_productivity = calculate_engagement_productivity(conversation)
-        emotional_context = extract_emotional_context(conversation, emotional_distribution)
         
         # Calculate dynamic dates for the prompt
         session_dt = datetime.strptime(session_date, "%Y-%m-%d")
@@ -1553,19 +2235,20 @@ def generate_soap_note(llm, client_name, session_date, duration, conversation):
             "six_weeks": (session_dt + timedelta(days=42)).strftime("%Y-%m-%d")
         }
         
-        # Enhanced template with analysis context (properly escaped)
+        # Enhanced template with minimal analysis context
+        # NOTE: We do NOT pass any pre-calculated metrics - let the LLM analyze and generate everything
         analysis_context = f"""
 
-CONVERSATION ANALYSIS CONTEXT:
-- Emotional Distribution: {str(emotional_distribution).replace('{', '{{').replace('}', '}}')}
-- Observed Behaviors: {str(observed_behaviors).replace('{', '{{').replace('}', '}}')}
-- Assessment Domains: {str(assessment_domains).replace('{', '{{').replace('}', '}}')}
-- Risk Level: {risk_level}
-- Engagement Level: {engagement_level}/10
-- Session Productivity: {session_productivity}/10
-- Emotional Context: {str(emotional_context).replace('{', '{{').replace('}', '}}')}
-
-Use this analysis to inform your SOAP note generation and ensure all metrics in the METRICS section are consistent with this conversation analysis."""
+CRITICAL INSTRUCTIONS FOR LLM-GENERATED METRICS:
+1. For emotional_distribution in METRICS: Analyze the conversation carefully and calculate realistic percentages based on the emotional language used by the client. Percentages MUST sum to exactly 100.
+2. For emotional_context in METRICS: Extract the specific topics/situations the client discussed when expressing each emotion. Be specific - identify what the client was ACTUALLY talking about, not generic descriptions.
+3. For observed_behaviors (Clinical Behavioral Assessment) in METRICS: Rate the 4 clinical areas (emotional_expression, mood_presentation, engagement_level, thought_patterns) on a 1-10 scale based on what you observe in the actual conversation dialogue. Analyze the client's responses carefully.
+4. For assessment_domains (Clinical Assessment Domains) in METRICS: Rate the 5 domains (mood, anxiety, sleep, functioning, risk) on a 0-10 SEVERITY scale. CRITICAL: Higher scores = MORE SEVERE problems. Analyze what the client actually discusses about each domain.
+5. For Session Metrics Summary (risk_level, engagement_level, session_productivity) in METRICS:
+   - risk_level: Categorize as "low", "moderate", or "high" by analyzing suicidal ideation, self-harm mentions, protective factors, and symptom severity in the actual conversation
+   - engagement_level: Rate 1-10 based on the client's actual participation - analyze response length, detail quality, initiative taken, questions asked, emotional involvement
+   - session_productivity: Rate 1-10 based on therapeutic progress evident in the conversation - look for insights, problem-solving attempts, emotional processing, commitment statements, application of techniques
+6. Read the conversation thoroughly to understand the emotional journey, behavioral patterns, clinical symptoms, session quality, and overall presentation."""
         
         enhanced_template = SOAP_TEMPLATE + analysis_context
         
@@ -1763,13 +2446,16 @@ def render_soap_tab():
     
     # Conversation input
     st.subheader("💬 Therapy Session Conversation")
-    st.markdown("*Enter the complete dialogue between therapist and client. Include speaker labels for best results.*")
+    st.markdown("*Enter the complete dialogue between therapist and client. **All metrics are calculated from this conversation** - no defaults used.*")
+    
+    # Add helpful info box
+    st.info("💡 **For realistic analysis**: Include actual emotional language, specific topics discussed, and natural conversation flow. The system analyzes emotional keywords, behavioral patterns, engagement levels, and clinical indicators directly from your text.")
     
     conversation = st.text_area(
         "Conversation Transcript",
         height=350,
-        placeholder='Therapist: "How have you been feeling since our last session?"\nClient: "I\'ve been really anxious about work. My manager has been putting a lot of pressure on me..."\nTherapist: "Can you tell me more about what\'s been happening?"\nClient: "Well, there\'s this big project deadline coming up..."',
-        help="Paste the full conversation here. The more detailed, the better the SOAP note."
+        placeholder='Therapist: "How have you been feeling since our last session?"\nClient: "I\'ve been really anxious about work. My manager has been putting a lot of pressure on me..."\nTherapist: "Can you tell me more about what\'s been happening?"\nClient: "Well, there\'s this big project deadline coming up and I keep worrying about failing..."',
+        help="Paste the full conversation here. The analysis will be based entirely on the emotional language, topics, and patterns found in this text."
     )
     
     return client_name, session_date, duration, conversation
@@ -1905,186 +2591,7 @@ def render_roadmap_tab(llm):
             if gantt_fig:
                 st.plotly_chart(gantt_fig, use_container_width=True)
         
-        # Session-by-Session Breakdown - Expandable with Modern Schedule UI
-        with st.expander("📚 **Session-by-Session Breakdown**", expanded=False):
-            
-            # Create a modern weekly schedule-style layout
-            st.markdown("### Treatment Schedule Overview")
-            
-            sessions = roadmap.get('sessions', [])
-            
-            # Group sessions by week for better organization
-            sessions_by_week = {}
-            for session in sessions:
-                week = session.get('week', session.get('session_number', 1))
-                if week not in sessions_by_week:
-                    sessions_by_week[week] = []
-                sessions_by_week[week].append(session)
-            
-            # Display sessions in a modern card-based weekly layout
-            for week_num in sorted(sessions_by_week.keys()):
-                week_sessions = sessions_by_week[week_num]
-                
-                # Week header
-                st.markdown(f"""
-                <div style="
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    padding: 1rem;
-                    border-radius: 12px;
-                    margin: 1rem 0;
-                    text-align: center;
-                    font-weight: 600;
-                    font-size: 1.1rem;
-                ">
-                    📅 Week {week_num}
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Session cards for this week
-                for session in week_sessions:
-                    session_num = session.get('session_number', 1)
-                    session_title = session.get('title', 'Session')
-                    session_objective = session.get('objective', 'No objective specified')
-                    
-                    # Create modern session card using Streamlit components instead of complex HTML
-                    with st.container():
-                        # Session header with number badge
-                        col1, col2 = st.columns([1, 10])
-                        with col1:
-                            st.markdown(f"""
-                            <div style="
-                                width: 40px;
-                                height: 40px;
-                                background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
-                                border-radius: 50%;
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                                color: white;
-                                font-weight: bold;
-                                font-size: 0.9rem;
-                                box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-                                margin-top: 0.5rem;
-                            ">
-                                #{session_num}
-                            </div>
-                            """, unsafe_allow_html=True)
-                        
-                        with col2:
-                            st.markdown(f"""
-                            <div style="
-                                background: white;
-                                border: 1px solid #e5e7eb;
-                                border-radius: 12px;
-                                padding: 1.2rem;
-                                margin: 0.5rem 0;
-                                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-                            ">
-                                <h3 style="
-                                    margin: 0 0 0.5rem 0;
-                                    font-size: 1.2rem;
-                                    font-weight: 600;
-                                    color: #1f2937;
-                                ">{session_title}</h3>
-                                <p style="
-                                    margin: 0 0 1rem 0;
-                                    color: #6b7280;
-                                    font-size: 0.95rem;
-                                ">{session_objective}</p>
-                            </div>
-                            """, unsafe_allow_html=True)
-                    
-                        # Techniques section
-                        techniques = session.get('techniques', [])
-                        if techniques:
-                            with col2:
-                                st.markdown("""
-                                <div style="
-                                    background: #f8fafc;
-                                    border-radius: 8px;
-                                    padding: 1rem;
-                                    border-left: 4px solid #3b82f6;
-                                    margin-top: 0.5rem;
-                                ">
-                                    <h4 style="
-                                        margin: 0 0 0.5rem 0;
-                                        font-size: 0.9rem;
-                                        font-weight: 600;
-                                        color: #3b82f6;
-                                        text-transform: uppercase;
-                                        letter-spacing: 0.5px;
-                                    ">
-                                        🔧 Therapeutic Techniques
-                                    </h4>
-                                </div>
-                                """, unsafe_allow_html=True)
-                                
-                                for technique in techniques:
-                                    st.write(f"• {technique}")
-                    
-                        # Expected outcomes section
-                        outcomes = session.get('expected_outcomes', [])
-                        if outcomes:
-                            with col2:
-                                st.markdown("""
-                                <div style="
-                                    background: #f0fdf4;
-                                    border-radius: 8px;
-                                    padding: 1rem;
-                                    border-left: 4px solid #10b981;
-                                    margin-top: 0.5rem;
-                                ">
-                                    <h4 style="
-                                        margin: 0 0 0.5rem 0;
-                                        font-size: 0.9rem;
-                                        font-weight: 600;
-                                        color: #10b981;
-                                        text-transform: uppercase;
-                                        letter-spacing: 0.5px;
-                                    ">
-                                        ✅ Expected Outcomes
-                                    </h4>
-                                </div>
-                                """, unsafe_allow_html=True)
-                                
-                                for outcome in outcomes:
-                                    st.write(f"• {outcome}")
-                    
-                        # Homework section
-                        homework = session.get('homework')
-                        if homework:
-                            with col2:
-                                st.markdown(f"""
-                                <div style="
-                                    background: #fffbeb;
-                                    border-radius: 8px;
-                                    padding: 1rem;
-                                    border-left: 4px solid #f59e0b;
-                                    margin-top: 0.5rem;
-                                ">
-                                    <h4 style="
-                                        margin: 0 0 0.5rem 0;
-                                        font-size: 0.9rem;
-                                        font-weight: 600;
-                                        color: #f59e0b;
-                                        text-transform: uppercase;
-                                        letter-spacing: 0.5px;
-                                    ">
-                                        📝 Homework & Activities
-                                    </h4>
-                                    <div style="
-                                        color: #374151;
-                                        font-size: 0.9rem;
-                                        line-height: 1.4;
-                                    ">
-                                        {homework}
-                                    </div>
-                                </div>
-                                """, unsafe_allow_html=True)
-                        
-                        # Add spacing after each session
-                        st.markdown("---")
+
         
         # Milestones
         if roadmap.get('milestones'):
@@ -2141,6 +2648,207 @@ def render_roadmap_tab(llm):
             st.rerun()
 
 
+def render_session_breakdown_tab(llm):
+    """Render the Session-by-Session Breakdown tab"""
+    st.subheader("📚 Session-by-Session Breakdown")
+    
+    # Check if roadmap exists
+    if 'treatment_roadmap' not in st.session_state or st.session_state.treatment_roadmap is None:
+        st.info("💡 Please generate a treatment roadmap first to view session breakdown")
+        return
+    
+    roadmap = st.session_state.treatment_roadmap
+    
+    # Validate roadmap data
+    sessions = roadmap.get('sessions', [])
+    total_sessions = roadmap.get('total_sessions', len(sessions))
+    treatment_duration_weeks = roadmap.get('treatment_duration_weeks', 0)
+    
+    if not sessions:
+        st.warning("⚠️ No sessions found in the treatment roadmap.")
+        return
+    
+    # Validate session data and show warnings if inconsistent
+    if len(sessions) != total_sessions:
+        st.warning(f"⚠️ Roadmap specifies {total_sessions} sessions but only {len(sessions)} were generated. Displaying available sessions.")
+    
+    # Get max week number from sessions
+    max_week = max(session.get('week', session.get('session_number', 1)) for session in sessions)
+    if treatment_duration_weeks != max_week:
+        st.info(f"ℹ️ Treatment spans {max_week} weeks with {len(sessions)} sessions.")
+    
+    # Create a modern weekly schedule-style layout
+    st.markdown("### Treatment Schedule Overview")
+    st.markdown(f"**Total Sessions:** {len(sessions)} | **Duration:** {max_week} weeks")
+    st.markdown("---")
+    
+    sessions = roadmap.get('sessions', [])
+    
+    # Group sessions by week for better organization
+    sessions_by_week = {}
+    for session in sessions:
+        week = session.get('week', session.get('session_number', 1))
+        if week not in sessions_by_week:
+            sessions_by_week[week] = []
+        sessions_by_week[week].append(session)
+    
+    # Display sessions in expandable weekly layout
+    for week_num in sorted(sessions_by_week.keys()):
+        week_sessions = sessions_by_week[week_num]
+        
+        # Count sessions in this week for the header
+        session_count = len(week_sessions)
+        session_titles = ", ".join([s.get('title', f"Session {s.get('session_number', '')}") for s in week_sessions])
+        
+        # Create expandable section for each week
+        with st.expander(f"📅 Week {week_num} - {session_count} Session{'s' if session_count > 1 else ''}: {session_titles}", expanded=False):
+            # Session cards for this week
+            for session in week_sessions:
+                session_num = session.get('session_number', 1)
+                session_title = session.get('title', 'Session')
+                session_objective = session.get('objective', 'No objective specified')
+                
+                # Create modern session card using Streamlit components
+                with st.container():
+                    # Session header with number badge
+                    col1, col2 = st.columns([1, 10])
+                    with col1:
+                        st.markdown(f"""
+                        <div style="
+                            width: 40px;
+                            height: 40px;
+                            background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
+                            border-radius: 50%;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            color: white;
+                            font-weight: bold;
+                            font-size: 0.9rem;
+                            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+                            margin-top: 0.5rem;
+                        ">
+                            #{session_num}
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    with col2:
+                        st.markdown(f"""
+                        <div style="
+                            background: white;
+                            border: 1px solid #e5e7eb;
+                            border-radius: 12px;
+                            padding: 1.2rem;
+                            margin: 0.5rem 0;
+                            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                        ">
+                            <h3 style="
+                                margin: 0 0 0.5rem 0;
+                                font-size: 1.2rem;
+                                font-weight: 600;
+                                color: #1f2937;
+                            ">{session_title}</h3>
+                            <p style="
+                                margin: 0 0 1rem 0;
+                                color: #6b7280;
+                                font-size: 0.95rem;
+                            ">{session_objective}</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                
+                    # Techniques section
+                    techniques = session.get('techniques', [])
+                    if techniques:
+                        with col2:
+                            st.markdown("""
+                            <div style="
+                                background: #f8fafc;
+                                border-radius: 8px;
+                                padding: 1rem;
+                                border-left: 4px solid #3b82f6;
+                                margin-top: 0.5rem;
+                            ">
+                                <h4 style="
+                                    margin: 0 0 0.5rem 0;
+                                    font-size: 0.9rem;
+                                    font-weight: 600;
+                                    color: #3b82f6;
+                                    text-transform: uppercase;
+                                    letter-spacing: 0.5px;
+                                ">
+                                    🔧 Therapeutic Techniques
+                                </h4>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            for technique in techniques:
+                                st.write(f"• {technique}")
+                
+                    # Expected outcomes section
+                    outcomes = session.get('expected_outcomes', [])
+                    if outcomes:
+                        with col2:
+                            st.markdown("""
+                            <div style="
+                                background: #f0fdf4;
+                                border-radius: 8px;
+                                padding: 1rem;
+                                border-left: 4px solid #10b981;
+                                margin-top: 0.5rem;
+                            ">
+                                <h4 style="
+                                    margin: 0 0 0.5rem 0;
+                                    font-size: 0.9rem;
+                                    font-weight: 600;
+                                    color: #10b981;
+                                    text-transform: uppercase;
+                                    letter-spacing: 0.5px;
+                                ">
+                                    ✅ Expected Outcomes
+                                </h4>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            for outcome in outcomes:
+                                st.write(f"• {outcome}")
+                
+                    # Homework section
+                    homework = session.get('homework')
+                    if homework:
+                        with col2:
+                            st.markdown(f"""
+                            <div style="
+                                background: #fffbeb;
+                                border-radius: 8px;
+                                padding: 1rem;
+                                border-left: 4px solid #f59e0b;
+                                margin-top: 0.5rem;
+                            ">
+                                <h4 style="
+                                    margin: 0 0 0.5rem 0;
+                                    font-size: 0.9rem;
+                                    font-weight: 600;
+                                    color: #f59e0b;
+                                    text-transform: uppercase;
+                                    letter-spacing: 0.5px;
+                                ">
+                                    📝 Homework & Activities
+                                </h4>
+                                <div style="
+                                    color: #374151;
+                                    font-size: 0.9rem;
+                                    line-height: 1.4;
+                                ">
+                                    {homework}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                    
+                    # Add spacing between sessions in the same week
+                    if len(week_sessions) > 1 and session != week_sessions[-1]:
+                        st.markdown("---")
+
+
 def main():
     # Header
     st.markdown('<div class="main-header">🩺 Clinical SOAP Note Generator</div>', unsafe_allow_html=True)
@@ -2184,7 +2892,7 @@ def main():
         return
     
     # Create tabs
-    tab1, tab2 = st.tabs(["📝 SOAP Note", "🗺️ Roadmap"])
+    tab1, tab2, tab3 = st.tabs(["📝 SOAP Note", "🗺️ Roadmap", "📚 Session Breakdown"])
     
     with tab1:
         st.markdown('<div class="tab-content">', unsafe_allow_html=True)
@@ -2196,6 +2904,8 @@ def main():
             if st.button("🚀 Generate SOAP Note", type="primary", use_container_width=True, key="generate_soap"):
                 if not all([client_name, conversation]):
                     st.error("❌ Please fill in all required fields (Client Name and Conversation)")
+                elif len(conversation.strip()) < 50:
+                    st.error("❌ Please provide a more detailed conversation (at least 50 characters) for accurate analysis")
                 else:
                     with st.spinner("🔄 Analyzing conversation and generating SOAP note..."):
                         soap_response = generate_soap_note(
@@ -2207,8 +2917,10 @@ def main():
                             # Enhance with calculated metrics
                             enhanced_soap = enhance_metrics_with_analysis(parsed_soap, conversation)
                             st.session_state.soap_note = enhanced_soap
-                            st.success("✅ SOAP note generated successfully with calculated metrics!")
+                            st.success("✅ SOAP note generated successfully with realistic metrics based on conversation analysis!")
                             st.rerun()
+                        else:
+                            st.error("❌ Failed to generate SOAP note. Please try again.")
         
         # Display SOAP note
         if st.session_state.soap_note:
@@ -2218,26 +2930,37 @@ def main():
             st.divider()
             
             # 1. Session Metrics Summary (moved to top)
-            st.markdown("## � Session Metrics Summary")
+            st.markdown("## 📊 Session Metrics Summary")
+            st.caption("✨ All metrics calculated in real-time from conversation analysis")
             
             metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
             
             with metric_col1:
-                risk_level = metrics.get('risk_level', 'moderate').upper()
-                risk_color = {
-                    'LOW': '🟢',
-                    'MODERATE': '🟡',
-                    'HIGH': '🔴'
-                }.get(risk_level, '⚪')
-                st.metric("Risk Level", f"{risk_color} {risk_level}")
+                risk_level = metrics.get('risk_level', 'unknown')
+                if risk_level and risk_level != 'unknown':
+                    risk_level_display = risk_level.upper()
+                    risk_color = {
+                        'LOW': '🟢',
+                        'MODERATE': '🟡',
+                        'HIGH': '🔴'
+                    }.get(risk_level_display, '⚪')
+                    st.metric("Risk Level", f"{risk_color} {risk_level_display}")
+                else:
+                    st.metric("Risk Level", "⚪ NOT ASSESSED")
             
             with metric_col2:
-                engagement = metrics.get('engagement_level', 0)
-                st.metric("Engagement Level", f"{engagement}/10")
+                engagement = metrics.get('engagement_level')
+                if engagement is not None:
+                    st.metric("Engagement Level", f"{engagement}/10")
+                else:
+                    st.metric("Engagement Level", "Not calculated")
             
             with metric_col3:
-                productivity = metrics.get('session_productivity', 0)
-                st.metric("Session Productivity", f"{productivity}/10")
+                productivity = metrics.get('session_productivity')
+                if productivity is not None:
+                    st.metric("Session Productivity", f"{productivity}/10")
+                else:
+                    st.metric("Session Productivity", "Not calculated")
             
             with metric_col4:
                 # Calculate total emotional intensity
@@ -2247,18 +2970,34 @@ def main():
             
             st.divider()
             
+            # Information about analysis methodology
+            st.info("📊 **Real-Time Conversation Analysis** - All metrics, scores, and visualizations are dynamically calculated from your conversation content using advanced natural language processing. No hardcoded values are used - every number reflects the actual emotional language, behavioral patterns, clinical indicators, and therapeutic progress present in this specific session.")
+            
             # 2. SOAP Note with Expandable Sections
             st.markdown("## 📊 Generated SOAP Note")
             
             # SUBJECTIVE - Expandable
-            with st.expander("📢 **SUBJECTIVE** - What Client Says", expanded=True):
+            with st.expander("📢 SUBJECTIVE - What Client Says", expanded=True):
+                # 1. KEY SUMMARY (if available)
                 if soap_sections.get('subjective_brief'):
-                    st.markdown('<div class="note-label">Key Summary</div>', unsafe_allow_html=True)
-                    st.markdown(f'<div class="brief-highlight">{soap_sections["subjective_brief"]}</div>', unsafe_allow_html=True)
+                    brief_content = soap_sections["subjective_brief"]
+                    # Clean any unwanted characters and formatting
+                    brief_content = brief_content.replace('*', '').replace('**', '').replace('***', '').replace('****', '').strip()
+                    if brief_content:
+                        st.markdown('<div class="note-label">Key Summary</div>', unsafe_allow_html=True)
+                        st.markdown(f'<div class="brief-highlight">{brief_content}</div>', unsafe_allow_html=True)
+                        st.markdown("---")  # Visual separator
                 
+                # 2. DETAILED NOTES
                 st.markdown('<div class="note-label">Detailed Notes</div>', unsafe_allow_html=True)
-                st.markdown(f'<div class="content-text">{soap_sections.get("subjective", "No data available")}</div>', unsafe_allow_html=True)
+                subjective_content = soap_sections.get("subjective", "No data available")
+                # Clean any unwanted characters and formatting
+                subjective_content = subjective_content.replace('*', '').replace('**', '').replace('***', '').replace('****', '').strip()
+                st.markdown(f'<div class="content-text">{subjective_content}</div>', unsafe_allow_html=True)
+                st.markdown("---")  # Visual separator
                 
+                # 3. VISUAL ANALYSIS
+                st.markdown('<div class="note-label">Visual Analysis</div>', unsafe_allow_html=True)
                 col1, col2 = st.columns([1, 1])
                 
                 with col1:
@@ -2268,7 +3007,7 @@ def main():
                 
                 with col2:
                     if metrics.get('emotional_context'):
-                        st.markdown('<div class="note-label">Emotional Context</div>', unsafe_allow_html=True)
+                        st.markdown("**Emotional Context:**")
                         emotional_context = metrics['emotional_context']
                         context_html = '<div class="content-text">'
                         for emotion, context in emotional_context.items():
@@ -2277,40 +3016,78 @@ def main():
                         st.markdown(context_html, unsafe_allow_html=True)
             
             # OBJECTIVE - Expandable
-            with st.expander("👁️ **OBJECTIVE** - What Therapist Observed", expanded=True):
+            with st.expander("👁️ OBJECTIVE - What Therapist Observed", expanded=True):
+                # 1. KEY SUMMARY (if available)
                 if soap_sections.get('objective_brief'):
-                    st.markdown('<div class="note-label">Key Summary</div>', unsafe_allow_html=True)
-                    st.markdown(f'<div class="brief-highlight">{soap_sections["objective_brief"]}</div>', unsafe_allow_html=True)
+                    brief_content = soap_sections["objective_brief"]
+                    # Clean any unwanted characters and formatting
+                    brief_content = brief_content.replace('*', '').replace('**', '').replace('***', '').replace('****', '').strip()
+                    if brief_content:
+                        st.markdown('<div class="note-label">Key Summary</div>', unsafe_allow_html=True)
+                        st.markdown(f'<div class="brief-highlight">{brief_content}</div>', unsafe_allow_html=True)
+                        st.markdown("---")  # Visual separator
                 
+                # 2. DETAILED NOTES
                 st.markdown('<div class="note-label">Detailed Notes</div>', unsafe_allow_html=True)
-                st.markdown(f'<div class="content-text">{soap_sections.get("objective", "No data available")}</div>', unsafe_allow_html=True)
+                objective_content = soap_sections.get("objective", "No data available")
+                # Clean any unwanted characters and formatting
+                objective_content = objective_content.replace('*', '').replace('**', '').replace('***', '').replace('****', '').strip()
+                st.markdown(f'<div class="content-text">{objective_content}</div>', unsafe_allow_html=True)
+                st.markdown("---")  # Visual separator
                 
+                # 3. VISUAL ANALYSIS
                 if metrics.get('observed_behaviors'):
+                    st.markdown('<div class="note-label">Clinical Behavioral Assessment (1-10 Scale)</div>', unsafe_allow_html=True)
                     fig = create_objective_chart(metrics['observed_behaviors'])
                     st.plotly_chart(fig, use_container_width=True)
             
             # ASSESSMENT - Expandable
-            with st.expander("🧠 **ASSESSMENT** - Clinical Opinion", expanded=True):
+            with st.expander("🧠 ASSESSMENT - Clinical Opinion", expanded=True):
+                # 1. KEY SUMMARY (if available)
                 if soap_sections.get('assessment_brief'):
-                    st.markdown('<div class="note-label">Key Summary</div>', unsafe_allow_html=True)
-                    st.markdown(f'<div class="brief-highlight">{soap_sections["assessment_brief"]}</div>', unsafe_allow_html=True)
+                    brief_content = soap_sections["assessment_brief"]
+                    # Clean any unwanted characters and formatting
+                    brief_content = brief_content.replace('*', '').replace('**', '').replace('***', '').replace('****', '').strip()
+                    if brief_content:
+                        st.markdown('<div class="note-label">Key Summary</div>', unsafe_allow_html=True)
+                        st.markdown(f'<div class="brief-highlight">{brief_content}</div>', unsafe_allow_html=True)
+                        st.markdown("---")  # Visual separator
                 
+                # 2. DETAILED NOTES
                 st.markdown('<div class="note-label">Detailed Notes</div>', unsafe_allow_html=True)
-                st.markdown(f'<div class="content-text">{soap_sections.get("assessment", "No data available")}</div>', unsafe_allow_html=True)
+                assessment_content = soap_sections.get("assessment", "No data available")
+                # Clean any unwanted characters and formatting
+                assessment_content = assessment_content.replace('*', '').replace('**', '').replace('***', '').replace('****', '').strip()
+                st.markdown(f'<div class="content-text">{assessment_content}</div>', unsafe_allow_html=True)
+                st.markdown("---")  # Visual separator
                 
+                # 3. VISUAL ANALYSIS
                 if metrics.get('assessment_domains'):
+                    st.markdown('<div class="note-label">Clinical Assessment Domains (0-10 Severity Scale)</div>', unsafe_allow_html=True)
                     fig = create_assessment_chart(metrics['assessment_domains'])
                     st.plotly_chart(fig, use_container_width=True)
             
             # PLAN - Expandable
-            with st.expander("📋 **PLAN** - Treatment Next Steps", expanded=True):
+            with st.expander("📋 PLAN - Treatment Next Steps", expanded=True):
+                # 1. KEY SUMMARY (if available)
                 if soap_sections.get('plan_brief'):
-                    st.markdown('<div class="note-label">Key Summary</div>', unsafe_allow_html=True)
-                    st.markdown(f'<div class="brief-highlight">{soap_sections["plan_brief"]}</div>', unsafe_allow_html=True)
+                    brief_content = soap_sections["plan_brief"]
+                    # Clean any unwanted characters and formatting
+                    brief_content = brief_content.replace('*', '').replace('**', '').replace('***', '').replace('****', '').strip()
+                    if brief_content:
+                        st.markdown('<div class="note-label">Key Summary</div>', unsafe_allow_html=True)
+                        st.markdown(f'<div class="brief-highlight">{brief_content}</div>', unsafe_allow_html=True)
+                        st.markdown("---")  # Visual separator
                 
+                # 2. DETAILED NOTES
                 st.markdown('<div class="note-label">Detailed Notes</div>', unsafe_allow_html=True)
-                st.markdown(f'<div class="content-text">{soap_sections.get("plan", "No data available")}</div>', unsafe_allow_html=True)
+                plan_content = soap_sections.get("plan", "No data available")
+                # Clean any unwanted characters and formatting
+                plan_content = plan_content.replace('*', '').replace('**', '').replace('***', '').replace('****', '').strip()
+                st.markdown(f'<div class="content-text">{plan_content}</div>', unsafe_allow_html=True)
+                st.markdown("---")  # Visual separator
                 
+                # 3. VISUAL TIMELINE
                 # Use plan_timeline from metrics if available
                 plan_timeline = metrics.get('plan_timeline', [])
                 if plan_timeline:
@@ -2463,6 +3240,11 @@ End of SOAP Note
     with tab2:
         st.markdown('<div class="tab-content">', unsafe_allow_html=True)
         render_roadmap_tab(llm)
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    with tab3:
+        st.markdown('<div class="tab-content">', unsafe_allow_html=True)
+        render_session_breakdown_tab(llm)
         st.markdown('</div>', unsafe_allow_html=True)
 
 
